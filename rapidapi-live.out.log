@@ -1,0 +1,75 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::               (v2.7.18)
+
+2026-04-20 17:51:06.274  INFO 28984 --- [           main] c.a.flight.FlightPlatformApplication     : Starting FlightPlatformApplication v0.1.0-SNAPSHOT using Java 17.0.12 on SYL2025340002 with PID 28984 (D:\airplane-home\target\flight-platform-0.1.0-SNAPSHOT.jar started by user in D:\airplane-home)
+2026-04-20 17:51:06.280  INFO 28984 --- [           main] c.a.flight.FlightPlatformApplication     : No active profile set, falling back to 1 default profile: "default"
+2026-04-20 17:51:07.101  INFO 28984 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-04-20 17:51:07.172  INFO 28984 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 53 ms. Found 3 JPA repository interfaces.
+2026-04-20 17:51:08.029  INFO 28984 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port(s): 8090 (http)
+2026-04-20 17:51:08.045  INFO 28984 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-04-20 17:51:08.045  INFO 28984 --- [           main] org.apache.catalina.core.StandardEngine  : Starting Servlet engine: [Apache Tomcat/9.0.83]
+2026-04-20 17:51:08.140  INFO 28984 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-04-20 17:51:08.141  INFO 28984 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1795 ms
+2026-04-20 17:51:08.179  INFO 28984 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-04-20 17:51:08.608  INFO 28984 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-04-20 17:51:08.630  INFO 28984 --- [           main] o.s.b.a.h2.H2ConsoleAutoConfiguration    : H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:flight-platform'
+2026-04-20 17:51:08.840  INFO 28984 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-04-20 17:51:08.988  INFO 28984 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 5.6.15.Final
+2026-04-20 17:51:09.285  INFO 28984 --- [           main] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2026-04-20 17:51:09.540  INFO 28984 --- [           main] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.H2Dialect
+2026-04-20 17:51:10.216  INFO 28984 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2026-04-20 17:51:10.231  INFO 28984 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-04-20 17:51:11.633  INFO 28984 --- [           main] c.a.f.service.FlightPrefetchService      : CACHE_WARMUP_FROM_DB entries=0
+2026-04-20 17:51:11.924  INFO 28984 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-04-20 17:51:12.352  INFO 28984 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8090 (http) with context path ''
+2026-04-20 17:51:12.382  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : PREFETCH_ROTATION routes=[ICN->NRT, ICN->FUK, ICN->KIX, ICN->TYO, ICN->CTS]
+2026-04-20 17:51:12.392  INFO 28984 --- [           main] c.a.flight.FlightPlatformApplication     : Started FlightPlatformApplication in 6.688 seconds (JVM running for 7.257)
+2026-04-20 17:51:12.970  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.024  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.025  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=NRT
+2026-04-20 17:51:13.025  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|NRT|2026-04-20 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.090  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.139  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.139  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=NRT
+2026-04-20 17:51:13.140  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|NRT|2026-04-23 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.205  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.268  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.269  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=FUK
+2026-04-20 17:51:13.270  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|FUK|2026-04-20 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.322  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.387  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.388  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=FUK
+2026-04-20 17:51:13.389  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|FUK|2026-04-23 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.439  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.490  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.491  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=KIX
+2026-04-20 17:51:13.491  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|KIX|2026-04-20 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.540  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.603  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.604  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=KIX
+2026-04-20 17:51:13.605  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|KIX|2026-04-23 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.665  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.726  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.727  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=TYO
+2026-04-20 17:51:13.728  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|TYO|2026-04-20 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.778  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.829  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.830  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=TYO
+2026-04-20 17:51:13.830  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|TYO|2026-04-23 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.879  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.941  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:13.942  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=CTS
+2026-04-20 17:51:13.942  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|CTS|2026-04-20 reason=no-data-or-provider-skipped
+2026-04-20 17:51:13.991  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:14.054  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI quota exceeded (429) - using fallback
+2026-04-20 17:51:14.055  WARN 28984 --- [   scheduling-1] c.a.flight.client.RapidApiClient         : RapidAPI location lookup failed origin=ICN destination=CTS
+2026-04-20 17:51:14.056  INFO 28984 --- [   scheduling-1] c.a.f.service.FlightPrefetchService      : API_CALL_SKIPPED key=ICN|CTS|2026-04-23 reason=no-data-or-provider-skipped
+2026-04-20 17:51:28.893  INFO 28984 --- [nio-8090-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-04-20 17:51:28.897  INFO 28984 --- [nio-8090-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-04-20 17:51:28.899  INFO 28984 --- [nio-8090-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms

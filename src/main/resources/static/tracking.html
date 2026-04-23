@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>추적 목록</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body data-page="tracking">
+  <main class="shell">
+    <section class="hero">
+      <div class="page-top">
+        <div>
+          <span class="eyebrow">가격 추적</span>
+          <h1>추적 목록과 복귀 흐름</h1>
+          <p id="tracking-focus" class="muted">카카오 알림에서 돌아오거나 새 추적을 만든 뒤 여기에서 확인할 수 있습니다.</p>
+        </div>
+        <a class="ghost-button" href="/">검색으로 돌아가기</a>
+      </div>
+
+      <div class="grid">
+        <section class="tracking-panel">
+          <div class="page-top">
+            <div>
+              <h2>추적 목록</h2>
+              <p class="muted">현재 가격, 목표 가격, 마지막 업데이트 시간과 삭제 기능을 확인할 수 있습니다.</p>
+            </div>
+          </div>
+          <div id="tracking-status" class="status"></div>
+          <div id="tracking-list" class="tracking-list"></div>
+        </section>
+
+        <section class="example-card">
+          <h2>카카오 메시지 예시</h2>
+          <p class="muted">스케줄러 알림에는 이 페이지로 돌아오는 링크가 포함됩니다.</p>
+          <pre id="kakao-example" class="demo-box"></pre>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

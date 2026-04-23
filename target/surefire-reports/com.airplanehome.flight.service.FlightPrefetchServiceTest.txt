@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.airplanehome.flight.service.FlightPrefetchServiceTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.68 s - in com.airplanehome.flight.service.FlightPrefetchServiceTest

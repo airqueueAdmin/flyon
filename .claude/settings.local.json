@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(find . -path */src/main/java/com/airplanehome/flight/*.java -type f)"
+    ]
+  }
+}

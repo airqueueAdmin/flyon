@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: flight-platform
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+      - key: RAPIDAPI_HOST
+        value: flights-sky.p.rapidapi.com
+      - key: DUFFEL_ENABLED
+        value: "true"
+      - key: DUFFEL_API_KEY
+        sync: false
+      - key: DUFFEL_INSECURE_SSL
+        value: "false"
+      - key: EXCHANGE_RATE_INSECURE_SSL
+        value: "false"

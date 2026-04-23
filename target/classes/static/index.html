@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>항공권 가격 추적</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body data-page="search">
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-top">
+        <span class="eyebrow">검색부터 알림까지</span>
+        <a class="ghost-button" href="/tracking.html">추적 목록 보기</a>
+      </div>
+      <div class="grid">
+        <div class="hero-copy">
+          <h1>노선을 검색하고 최저가를 추적한 뒤 카카오 알림으로 확인하세요.</h1>
+          <p class="muted">항공권 검색부터 가격 추적, 가격 하락 알림, 앱 복귀까지 한 번에 이어지는 간단한 흐름입니다.</p>
+        </div>
+
+        <section class="search-card">
+          <form id="search-form" class="search-form">
+            <div class="field-grid">
+              <div class="field">
+                <label for="origin">출발지</label>
+                <input id="origin" name="origin" type="text" placeholder="ICN" maxlength="3" required>
+              </div>
+              <div class="field">
+                <label for="destination">도착지</label>
+                <input id="destination" name="destination" type="text" placeholder="NRT" maxlength="3" required>
+              </div>
+              <div class="field">
+                <label for="departure-date">출발일</label>
+                <input id="departure-date" name="departure-date" type="date" required>
+              </div>
+            </div>
+            <div class="button-row">
+              <button class="button" type="submit">검색</button>
+            </div>
+            <div id="search-status" class="status"></div>
+          </form>
+        </section>
+
+        <section class="results-panel">
+          <div class="page-top">
+            <div>
+              <h2>최저가 결과</h2>
+              <p id="result-count" class="muted"></p>
+            </div>
+          </div>
+          <div id="results" class="results-panel"></div>
+        </section>
+
+        <section class="example-card">
+          <h2>알림 흐름 예시</h2>
+          <div class="flow-list">
+            <div class="flow-item">1. 항공권을 검색하고 가장 저렴한 항공편을 선택합니다.</div>
+            <div class="flow-item">2. <strong>가격 추적</strong>을 누르고 필요하면 목표 가격을 입력합니다.</div>
+            <div class="flow-item">3. 카카오 알림을 켜 두면 가격 하락이나 목표 가격 도달 시 알림을 받습니다.</div>
+            <div class="flow-item">4. 카카오 메시지 안의 링크를 눌러 추적 페이지로 돌아옵니다.</div>
+          </div>
+          <pre id="kakao-example" class="demo-box"></pre>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div id="track-modal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="meta">
+        <span class="eyebrow">가격 추적</span>
+        <h3 id="selected-route">노선</h3>
+        <p class="muted">이 노선의 목표 가격을 선택적으로 입력하고 카카오 알림을 설정하세요.</p>
+      </div>
+      <form id="track-form" class="search-form">
+        <div class="field">
+          <label for="target-price">목표 가격 (선택)</label>
+          <input id="target-price" type="number" min="0" step="1" placeholder="0">
+        </div>
+        <div class="field">
+          <label for="phone-number">알림톡 수신 번호</label>
+          <input id="phone-number" type="tel" inputmode="numeric" placeholder="01012345678">
+        </div>
+        <label class="checkline" for="kakao-enabled">
+          <input id="kakao-enabled" type="checkbox" checked>
+          <span>카카오 알림 받기</span>
+        </label>
+        <label class="checkline" for="kakao-opt-in">
+          <input id="kakao-opt-in" type="checkbox" checked>
+          <span>알림톡 수신 동의</span>
+        </label>
+        <div class="modal-actions">
+          <button class="button" type="submit">추적 시작</button>
+          <button id="close-modal" class="ghost-button" type="button">닫기</button>
+          <a id="tracking-link" class="inline-button" href="/tracking.html" hidden>추적 페이지로 이동</a>
+        </div>
+        <div id="track-status" class="status"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
