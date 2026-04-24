@@ -1,6 +1,7 @@
 package com.airplanehome.flight.service;
 
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.TripType;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,50 +20,67 @@ public class SharedFlightCacheService {
 
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<String, CacheEntry>();
 
-    public String buildKey(String origin, String destination, LocalDate departureDate) {
-        return normalize(origin) + "|" + normalize(destination) + "|" + departureDate;
+    public String buildKey(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        StringBuilder key = new StringBuilder();
+        key.append(tripType == null ? TripType.ONE_WAY.name() : tripType.name())
+                .append("|")
+                .append(normalize(origin))
+                .append("|")
+                .append(normalize(destination))
+                .append("|")
+                .append(departureDate);
+        if (returnDate != null) {
+            key.append("|").append(returnDate);
+        }
+        return key.toString();
     }
 
-    public List<FlightPrice> getFresh(String origin, String destination, LocalDate departureDate) {
-        CacheEntry entry = cache.get(buildKey(origin, destination, departureDate));
+    public List<FlightPrice> getFresh(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        CacheEntry entry = cache.get(buildKey(tripType, origin, destination, departureDate, returnDate));
         if (entry == null || entry.isExpired()) {
             return Collections.emptyList();
         }
         return copy(entry.getFlights());
     }
 
-    public List<FlightPrice> getStale(String origin, String destination, LocalDate departureDate) {
-        CacheEntry entry = cache.get(buildKey(origin, destination, departureDate));
+    public List<FlightPrice> getStale(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        CacheEntry entry = cache.get(buildKey(tripType, origin, destination, departureDate, returnDate));
         if (entry == null) {
             return Collections.emptyList();
         }
         return copy(entry.getFlights());
     }
 
-    public boolean hasEntry(String origin, String destination, LocalDate departureDate) {
-        return cache.containsKey(buildKey(origin, destination, departureDate));
+    public boolean hasEntry(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        return cache.containsKey(buildKey(tripType, origin, destination, departureDate, returnDate));
     }
 
-    public boolean isExpired(String origin, String destination, LocalDate departureDate) {
-        CacheEntry entry = cache.get(buildKey(origin, destination, departureDate));
+    public boolean isExpired(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        CacheEntry entry = cache.get(buildKey(tripType, origin, destination, departureDate, returnDate));
         return entry == null || entry.isExpired();
     }
 
-    public void put(String origin, String destination, LocalDate departureDate, List<FlightPrice> flights) {
-        cache.put(buildKey(origin, destination, departureDate),
+    public void put(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate, List<FlightPrice> flights) {
+        cache.put(buildKey(tripType, origin, destination, departureDate, returnDate),
                 new CacheEntry(copy(flights), Instant.now().plus(FLIGHT_CACHE_DURATION)));
     }
 
-    public void warm(String origin, String destination, LocalDate departureDate, List<FlightPrice> flights, LocalDateTime prefetchedAt) {
+    public void warm(TripType tripType,
+                     String origin,
+                     String destination,
+                     LocalDate departureDate,
+                     LocalDate returnDate,
+                     List<FlightPrice> flights,
+                     LocalDateTime prefetchedAt) {
         Instant expiresAt = prefetchedAt.plus(FLIGHT_CACHE_DURATION).atZone(java.time.ZoneId.systemDefault()).toInstant();
         if (Instant.now().isAfter(expiresAt)) {
             return;
         }
-        cache.put(buildKey(origin, destination, departureDate), new CacheEntry(copy(flights), expiresAt));
+        cache.put(buildKey(tripType, origin, destination, departureDate, returnDate), new CacheEntry(copy(flights), expiresAt));
     }
 
-    public void evict(String origin, String destination, LocalDate departureDate) {
-        cache.remove(buildKey(origin, destination, departureDate));
+    public void evict(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+        cache.remove(buildKey(tripType, origin, destination, departureDate, returnDate));
     }
 
     public void clear() {

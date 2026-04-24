@@ -1,6 +1,7 @@
 package com.airplanehome.flight.controller;
 
 import com.airplanehome.flight.controller.dto.AdminCacheRequest;
+import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.service.FlightPrefetchService;
 import java.util.Collections;
 import java.util.Map;
@@ -33,9 +34,12 @@ public class AdminCacheController {
     public Map<String, String> evict(@RequestHeader(value = ADMIN_TOKEN_HEADER, required = false) String token,
                                      @Valid @RequestBody AdminCacheRequest request) {
         authorize(token);
-        flightPrefetchService.evictCache(normalizeCode(request.getOrigin()),
+        TripType tripType = resolveTripType(request.getTripType(), request.getReturnDate());
+        flightPrefetchService.evictCache(tripType,
+                normalizeCode(request.getOrigin()),
                 normalizeCode(request.getDestination()),
-                request.getDepartureDate());
+                request.getDepartureDate(),
+                normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate()));
         return Collections.singletonMap("message", "Cache entry evicted.");
     }
 
@@ -43,9 +47,12 @@ public class AdminCacheController {
     public Map<String, String> refresh(@RequestHeader(value = ADMIN_TOKEN_HEADER, required = false) String token,
                                        @Valid @RequestBody AdminCacheRequest request) {
         authorize(token);
-        flightPrefetchService.refresh(normalizeCode(request.getOrigin()),
+        TripType tripType = resolveTripType(request.getTripType(), request.getReturnDate());
+        flightPrefetchService.refresh(tripType,
+                normalizeCode(request.getOrigin()),
                 normalizeCode(request.getDestination()),
-                request.getDepartureDate());
+                request.getDepartureDate(),
+                normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate()));
         return Collections.singletonMap("message", "Cache entry refreshed.");
     }
 
@@ -67,6 +74,28 @@ public class AdminCacheController {
 
     private String normalizeCode(String value) {
         return value.trim().toUpperCase();
+    }
+
+    private TripType resolveTripType(TripType tripType, java.time.LocalDate returnDate) {
+        if (tripType != null) {
+            return tripType;
+        }
+        return returnDate == null ? TripType.ONE_WAY : TripType.ROUND_TRIP;
+    }
+
+    private java.time.LocalDate normalizeReturnDate(TripType tripType,
+                                                    java.time.LocalDate departureDate,
+                                                    java.time.LocalDate returnDate) {
+        if (!tripType.isRoundTrip()) {
+            return null;
+        }
+        if (returnDate == null) {
+            throw new IllegalArgumentException("returnDate is required for ROUND_TRIP.");
+        }
+        if (departureDate != null && returnDate.isBefore(departureDate)) {
+            throw new IllegalArgumentException("returnDate must be on or after departureDate.");
+        }
+        return returnDate;
     }
 
     static final class AdminUnauthorizedException extends RuntimeException {

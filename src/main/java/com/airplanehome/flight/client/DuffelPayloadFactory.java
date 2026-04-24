@@ -11,19 +11,33 @@ final class DuffelPayloadFactory {
     private DuffelPayloadFactory() {
     }
 
-    static JsonNode offerRequest(String origin, String destination, String departureDate) {
+    static JsonNode offerRequest(String origin,
+                                 String destination,
+                                 String departureDate,
+                                 String returnDate,
+                                 Integer adults) {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         ObjectNode data = root.putObject("data");
 
         ArrayNode slices = data.putArray("slices");
+        addSlice(slices, origin, destination, departureDate);
+        if (returnDate != null) {
+            addSlice(slices, destination, origin, returnDate);
+        }
+
+        ArrayNode passengers = data.putArray("passengers");
+        int passengerCount = adults == null || adults.intValue() < 1 ? 1 : adults.intValue();
+        for (int index = 0; index < passengerCount; index++) {
+            passengers.addObject().put("type", "adult");
+        }
+        data.put("cabin_class", "economy");
+        return root;
+    }
+
+    private static void addSlice(ArrayNode slices, String origin, String destination, String departureDate) {
         ObjectNode slice = slices.addObject();
         slice.put("origin", origin);
         slice.put("destination", destination);
         slice.put("departure_date", departureDate);
-
-        ArrayNode passengers = data.putArray("passengers");
-        passengers.addObject().put("type", "adult");
-        data.put("cabin_class", "economy");
-        return root;
     }
 }

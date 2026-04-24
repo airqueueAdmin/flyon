@@ -24,6 +24,7 @@ class RapidApiClientPriceParsingTest {
                 "test-host",
                 "https://example.com/auto-complete",
                 "https://example.com/search",
+                "",
                 "KR",
                 "ko-KR",
                 "KRW",

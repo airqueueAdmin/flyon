@@ -1,11 +1,14 @@
 package com.airplanehome.flight.controller.dto;
 
+import com.airplanehome.flight.model.TripType;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import javax.validation.constraints.NotNull;
 
 public class TrackingRequest {
     private String email;
+    private TripType tripType;
     @NotNull
     private String origin;
     @NotNull
@@ -13,11 +16,21 @@ public class TrackingRequest {
     @NotNull
     private LocalDate departureDate;
     private LocalDate returnDate;
+    private Integer adults;
+    @JsonAlias("adults")
     private Integer passengers;
     private BigDecimal targetPrice;
     private Boolean kakaoNotificationEnabled;
     private String phoneNumber;
     private Boolean kakaoOptIn;
+
+    public TripType getTripType() {
+        return tripType;
+    }
+
+    public void setTripType(TripType tripType) {
+        this.tripType = tripType;
+    }
 
     public String getEmail() {
         return email;
@@ -59,8 +72,19 @@ public class TrackingRequest {
         this.returnDate = returnDate;
     }
 
-    public Integer getPassengers() {
+    public Integer getAdults() {
+        if (adults != null) {
+            return adults;
+        }
         return passengers;
+    }
+
+    public void setAdults(Integer adults) {
+        this.adults = adults;
+    }
+
+    public Integer getPassengers() {
+        return getAdults();
     }
 
     public void setPassengers(Integer passengers) {

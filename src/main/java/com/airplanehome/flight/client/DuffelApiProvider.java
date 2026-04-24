@@ -1,6 +1,7 @@
 package com.airplanehome.flight.client;
 
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.TripType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -8,7 +9,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,17 +57,20 @@ public class DuffelApiProvider implements FlightProvider {
     }
 
     @Override
-    public List<FlightPrice> search(String origin, String destination, String departureDate) {
+    public List<FlightPrice> search(TripType tripType,
+                                    String origin,
+                                    String destination,
+                                    LocalDate departureDate,
+                                    LocalDate returnDate,
+                                    Integer adults) {
         if (!enabled || !StringUtils.hasText(apiKey)) {
             log.info("API_CALL_SKIPPED provider=duffel reason=disabled");
             return Collections.emptyList();
         }
 
-        LocalDate parsedDepartureDate;
-        try {
-            parsedDepartureDate = LocalDate.parse(departureDate);
-        } catch (DateTimeParseException exception) {
-            log.warn("Duffel provider rejected invalid departureDate={}", departureDate);
+        TripType resolvedTripType = tripType == null ? (returnDate == null ? TripType.ONE_WAY : TripType.ROUND_TRIP) : tripType;
+        if (resolvedTripType.isRoundTrip() && returnDate == null) {
+            log.warn("Duffel provider rejected missing returnDate for round trip");
             return Collections.emptyList();
         }
 
@@ -91,33 +94,41 @@ public class DuffelApiProvider implements FlightProvider {
                     new HttpEntity<JsonNode>(DuffelPayloadFactory.offerRequest(
                             normalizedOrigin,
                             normalizedDestination,
-                            parsedDepartureDate.toString()), headers),
+                            departureDate.toString(),
+                            returnDate == null ? null : returnDate.toString(),
+                            adults), headers),
                     JsonNode.class);
 
             List<FlightPrice> flights = extractFlightPrices(
                     response.getBody(),
+                    resolvedTripType,
                     normalizedOrigin,
                     normalizedDestination,
-                    parsedDepartureDate);
+                    departureDate,
+                    returnDate,
+                    adults);
             if (!flights.isEmpty()) {
-                log.info("DUFFEL_API_SUCCESS origin={} destination={} departureDate={} size={}",
-                        normalizedOrigin, normalizedDestination, parsedDepartureDate, flights.size());
+                log.info("DUFFEL_API_SUCCESS tripType={} origin={} destination={} departureDate={} returnDate={} size={}",
+                        resolvedTripType, normalizedOrigin, normalizedDestination, departureDate, returnDate, flights.size());
             } else {
-                log.warn("DUFFEL_API_FAILED origin={} destination={} departureDate={} reason=empty-response",
-                        normalizedOrigin, normalizedDestination, parsedDepartureDate);
+                log.warn("DUFFEL_API_FAILED tripType={} origin={} destination={} departureDate={} returnDate={} reason=empty-response",
+                        resolvedTripType, normalizedOrigin, normalizedDestination, departureDate, returnDate);
             }
             return flights;
         } catch (RestClientException exception) {
-            log.error("DUFFEL_API_FAILED origin={} destination={} departureDate={}",
-                    normalizedOrigin, normalizedDestination, parsedDepartureDate, exception);
+            log.error("DUFFEL_API_FAILED tripType={} origin={} destination={} departureDate={} returnDate={}",
+                    resolvedTripType, normalizedOrigin, normalizedDestination, departureDate, returnDate, exception);
             return Collections.emptyList();
         }
     }
 
     private List<FlightPrice> extractFlightPrices(JsonNode body,
+                                                  TripType tripType,
                                                   String origin,
                                                   String destination,
-                                                  LocalDate departureDate) {
+                                                  LocalDate departureDate,
+                                                  LocalDate returnDate,
+                                                  Integer adults) {
         JsonNode offers = body == null ? null : body.path("data").path("offers");
         if (offers == null || !offers.isArray()) {
             return Collections.emptyList();
@@ -125,30 +136,38 @@ public class DuffelApiProvider implements FlightProvider {
 
         List<FlightPrice> flights = new ArrayList<FlightPrice>();
         for (JsonNode offer : offers) {
-            BigDecimal price = readDecimal(offer.path("total_amount"));
+            BigDecimal totalPrice = readDecimal(offer.path("total_amount"));
             JsonNode slices = offer.path("slices");
-            JsonNode firstSlice = slices.path(0);
-            JsonNode segments = firstSlice.path("segments");
-            JsonNode firstSegment = segments.path(0);
-            JsonNode lastSegment = segments.path(segments.size() - 1);
+            JsonNode outboundSlice = slices.path(0);
+            JsonNode inboundSlice = tripType.isRoundTrip() ? slices.path(1) : null;
+            FlightSegment outbound = extractSegment(outboundSlice);
+            FlightSegment inbound = inboundSlice == null || inboundSlice.isMissingNode() ? null : extractSegment(inboundSlice);
 
-            if (price == null || firstSegment.isMissingNode() || lastSegment.isMissingNode()) {
+            if (totalPrice == null || outbound == null) {
+                continue;
+            }
+            if (tripType.isRoundTrip() && inbound == null) {
                 continue;
             }
 
             FlightPrice flightPrice = new FlightPrice();
+            flightPrice.setTripType(tripType);
             flightPrice.setOrigin(origin);
             flightPrice.setDestination(destination);
             flightPrice.setDepartureDate(departureDate);
-            flightPrice.setPrice(price);
+            flightPrice.setReturnDate(returnDate);
+            flightPrice.setTotalPrice(totalPrice);
+            flightPrice.setPrice(totalPrice);
             flightPrice.setCurrency(readText(offer, "total_currency"));
             flightPrice.setProvider("duffel");
-            flightPrice.setAirline(readAirlineName(offer, firstSegment));
-            flightPrice.setDepartureTime(readDateTime(firstSegment, "departing_at"));
-            flightPrice.setArrivalTime(readDateTime(lastSegment, "arriving_at"));
-            if (!StringUtils.hasText(flightPrice.getAirline())) {
-                continue;
-            }
+            flightPrice.setAirline(outbound.airline);
+            flightPrice.setOutboundAirline(outbound.airline);
+            flightPrice.setInboundAirline(inbound == null ? null : inbound.airline);
+            flightPrice.setDepartureTime(outbound.departureTime);
+            flightPrice.setArrivalTime(outbound.arrivalTime);
+            flightPrice.setReturnDepartureTime(inbound == null ? null : inbound.departureTime);
+            flightPrice.setReturnArrivalTime(inbound == null ? null : inbound.arrivalTime);
+            flightPrice.setPassengers(adults == null ? 1 : adults);
             flights.add(flightPrice);
         }
 
@@ -156,7 +175,29 @@ public class DuffelApiProvider implements FlightProvider {
         return flights;
     }
 
-    private String readAirlineName(JsonNode offer, JsonNode firstSegment) {
+    private FlightSegment extractSegment(JsonNode slice) {
+        if (slice == null || slice.isMissingNode() || slice.isNull()) {
+            return null;
+        }
+
+        JsonNode segments = slice.path("segments");
+        JsonNode firstSegment = segments.path(0);
+        JsonNode lastSegment = segments.path(Math.max(0, segments.size() - 1));
+        if (firstSegment.isMissingNode() || lastSegment.isMissingNode()) {
+            return null;
+        }
+
+        String airline = readAirlineName(slice, firstSegment);
+        LocalDateTime departureTime = readDateTime(firstSegment, "departing_at");
+        LocalDateTime arrivalTime = readDateTime(lastSegment, "arriving_at");
+        if (!StringUtils.hasText(airline) || departureTime == null || arrivalTime == null) {
+            return null;
+        }
+
+        return new FlightSegment(airline, departureTime, arrivalTime);
+    }
+
+    private String readAirlineName(JsonNode offerOrSlice, JsonNode firstSegment) {
         String airline = readText(firstSegment, "operating_carrier.name");
         if (StringUtils.hasText(airline)) {
             return airline;
@@ -167,7 +208,7 @@ public class DuffelApiProvider implements FlightProvider {
             return airline;
         }
 
-        airline = readText(offer, "owner.name");
+        airline = readText(offerOrSlice, "owner.name");
         if ("Duffel Airways".equalsIgnoreCase(airline)) {
             return null;
         }
@@ -234,5 +275,17 @@ public class DuffelApiProvider implements FlightProvider {
         }
         apiCallTimes.addLast(now);
         return true;
+    }
+
+    private static final class FlightSegment {
+        private final String airline;
+        private final LocalDateTime departureTime;
+        private final LocalDateTime arrivalTime;
+
+        private FlightSegment(String airline, LocalDateTime departureTime, LocalDateTime arrivalTime) {
+            this.airline = airline;
+            this.departureTime = departureTime;
+            this.arrivalTime = arrivalTime;
+        }
     }
 }

@@ -21,22 +21,44 @@
 
         <section class="search-card">
           <form id="search-form" class="search-form">
+            <div class="field">
+              <span class="field-label">여정 유형</span>
+              <div class="trip-type-toggle" role="radiogroup" aria-label="여정 유형">
+                <label class="trip-type-option" for="trip-type-one-way">
+                  <input id="trip-type-one-way" name="trip-type" type="radio" value="ONE_WAY" checked>
+                  <span>편도</span>
+                </label>
+                <label class="trip-type-option" for="trip-type-round-trip">
+                  <input id="trip-type-round-trip" name="trip-type" type="radio" value="ROUND_TRIP">
+                  <span>왕복</span>
+                </label>
+              </div>
+            </div>
             <div class="field-grid">
               <div class="field">
                 <label for="origin">출발지</label>
-                <input id="origin" name="origin" type="text" placeholder="ICN" maxlength="3" required>
+                <select id="origin" name="origin" required></select>
               </div>
               <div class="field">
                 <label for="destination">도착지</label>
-                <input id="destination" name="destination" type="text" placeholder="NRT" maxlength="3" required>
+                <select id="destination" name="destination" required></select>
               </div>
               <div class="field">
                 <label for="departure-date">출발일</label>
                 <input id="departure-date" name="departure-date" type="date" required>
               </div>
+              <div id="return-date-field" class="field" hidden>
+                <label for="return-date">도착일</label>
+                <input id="return-date" name="return-date" type="date">
+              </div>
+              <div class="field">
+                <label for="adults">탑승객 수</label>
+                <input id="adults" name="adults" type="number" min="1" step="1" value="1" required>
+              </div>
             </div>
+            <p id="search-window-note" class="inline-note"></p>
             <div class="button-row">
-              <button class="button" type="submit">검색</button>
+              <button class="button" type="submit">항공권 검색</button>
             </div>
             <div id="search-status" class="status"></div>
           </form>

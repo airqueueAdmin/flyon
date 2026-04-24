@@ -9,6 +9,7 @@ This repo is a Spring Boot flight-price service with:
 - RapidAPI as primary provider
 - Duffel as fallback provider
 - local PostgreSQL via Docker Compose
+- built-in static web UI (`/` and `/tracking.html`)
 - Docker-based deployment prep for Render
 - Kakao AlimTalk notifications via NCP SENS
 
@@ -30,8 +31,9 @@ The current working directory used during setup was `D:\airplane-home`.
 1. Scheduler calls `FlightService.checkTrackedPrices()` every 5 minutes (`tracking.interval-ms: 300000`)
 2. For each active `Tracking`, latest price is fetched from cache/DB
 3. If price dropped below previous or target and Kakao is opted-in, `PriceDropNotification` is created
-4. `KakaoNotificationService.sendAlimTalk()` fires via NCP SENS API (AlimTalk)
-5. `tracking.lastCheckedPrice` is updated and persisted
+4. `PriceTrackerScheduler` applies duplicate suppression (`lastNotifiedPrice`) and min-drop thresholds
+5. `KakaoNotificationService.sendAlimTalk()` fires via NCP SENS API (AlimTalk)
+6. On successful send, `tracking.lastNotifiedPrice` is updated; `tracking.lastCheckedPrice` is updated and persisted
 
 ### Scheduler
 
@@ -189,6 +191,10 @@ Behavior:
   - price dropped below previous or target price
 - `examplePayload()` method exists for testing without real API calls
 - deep link uses `app.web.base-url` + `?origin=...&destination=...&date=...`
+- `PriceTrackerScheduler` enforces:
+  - duplicate suppression via `tracking.lastNotifiedPrice`
+  - `app.kakao.min-price-drop-krw` threshold (default 10000 KRW)
+  - `app.kakao.min-price-drop-percent` threshold (default 5%)
 
 Tracking model now includes:
 
@@ -338,15 +344,19 @@ Note:
 - [src/main/java/com/airplanehome/flight/service/SharedFlightCacheService.java](src/main/java/com/airplanehome/flight/service/SharedFlightCacheService.java)
 - [src/main/java/com/airplanehome/flight/service/ExchangeRateService.java](src/main/java/com/airplanehome/flight/service/ExchangeRateService.java)
 - [src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java)
+- [src/main/java/com/airplanehome/flight/scheduler/PriceTrackerScheduler.java](src/main/java/com/airplanehome/flight/scheduler/PriceTrackerScheduler.java)
 - [src/main/java/com/airplanehome/flight/service/PriceDropNotification.java](src/main/java/com/airplanehome/flight/service/PriceDropNotification.java)
 - [src/main/java/com/airplanehome/flight/client/RapidApiClient.java](src/main/java/com/airplanehome/flight/client/RapidApiClient.java)
 - [src/main/java/com/airplanehome/flight/client/RapidApiProvider.java](src/main/java/com/airplanehome/flight/client/RapidApiProvider.java)
 - [src/main/java/com/airplanehome/flight/client/DuffelApiProvider.java](src/main/java/com/airplanehome/flight/client/DuffelApiProvider.java)
+- [src/main/java/com/airplanehome/flight/controller/ApiExceptionHandler.java](src/main/java/com/airplanehome/flight/controller/ApiExceptionHandler.java)
 - [src/main/java/com/airplanehome/flight/model/Tracking.java](src/main/java/com/airplanehome/flight/model/Tracking.java)
 - [src/main/java/com/airplanehome/flight/time/TimeSupport.java](src/main/java/com/airplanehome/flight/time/TimeSupport.java)
 - [src/main/java/com/airplanehome/flight/serialization/KstLocalDateTimeSerializer.java](src/main/java/com/airplanehome/flight/serialization/KstLocalDateTimeSerializer.java)
 - [src/main/java/com/airplanehome/flight/FlightPlatformApplication.java](src/main/java/com/airplanehome/flight/FlightPlatformApplication.java)
 - [src/main/resources/application.yml](src/main/resources/application.yml)
+- [src/main/resources/static/index.html](src/main/resources/static/index.html)
+- [src/main/resources/static/tracking.html](src/main/resources/static/tracking.html)
 - [docker-compose.local.yml](docker-compose.local.yml)
 - [.env.local](.env.local)
 - [Dockerfile](Dockerfile)
@@ -395,6 +405,19 @@ If the external exchange-rate API fails, the service falls back to:
 ### 5. Kakao notification requires all NCP SENS env vars
 
 If any of `KAKAO_API_KEY`, `KAKAO_API_SECRET`, `KAKAO_SENDER_NUMBER`, `KAKAO_TEMPLATE_CODE`, `KAKAO_SERVICE_ID`, `KAKAO_PLUS_FRIEND_ID` is empty, the service logs `KAKAO_FAILED: missing configuration` and skips silently.
+
+### 6. API exceptions are normalized to JSON responses
+
+Implemented in:
+
+- [src/main/java/com/airplanehome/flight/controller/ApiExceptionHandler.java](src/main/java/com/airplanehome/flight/controller/ApiExceptionHandler.java)
+
+Behavior:
+
+- `IllegalArgumentException` -> `400`
+- `IllegalStateException` -> `503`
+- admin auth failures -> `401`
+- response body shape is `{ "message": "..." }`
 
 ## Environment Variables
 
@@ -451,11 +474,11 @@ Render/Neon deployment config is prepared in-repo, but actual live deployment st
 ## Recommended Next Steps
 
 1. Set `ADMIN_API_TOKEN` in the actual runtime environment before using admin cache endpoints
-2. Wire Kakao `min-price-drop-krw` / `min-price-drop-percent` thresholds into notification guard logic (config exists, enforcement is caller-side)
+2. Verify and tune Kakao notification thresholds (`KAKAO_MIN_PRICE_DROP_KRW`, `KAKAO_MIN_PRICE_DROP_PERCENT`) for production behavior
 3. Finish the actual Render + Neon platform-side setup using the prepared `render.yaml` and deployment doc
 4. Rotate `.env.local` Duffel token if it expires
-5. Replace `KAKAO_ENABLED=false` with real Kakao env vars once NCP SENS account is provisioned
+5. Provision real Kakao env vars in the target runtime before enabling `KAKAO_ENABLED`
 
 ## Suggested Prompt For The Next Agent
 
-> Read `HANDOFF.md` first. This Spring Boot flight service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, admin cache endpoints (`/api/admin/cache/evict`, `/api/admin/cache/refresh`, `/api/admin/cache/clear`) protected by `X-Admin-Token` / `ADMIN_API_TOKEN`, Kakao AlimTalk notifications via NCP SENS, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.
+> Read `HANDOFF.md` first. This Spring Boot flight service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, built-in static UI (`/` and `/tracking.html`), dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, admin cache endpoints (`/api/admin/cache/evict`, `/api/admin/cache/refresh`, `/api/admin/cache/clear`) protected by `X-Admin-Token` / `ADMIN_API_TOKEN`, Kakao AlimTalk notifications via NCP SENS with threshold + duplicate suppression in `PriceTrackerScheduler`, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.

@@ -28,12 +28,7 @@ public class FlightController {
 
     @PostMapping("/flights/search")
     public List<FlightPrice> searchLowestPrice(@Valid @RequestBody FlightSearchRequest request) {
-        return flightService.searchLowestPrice(
-                request.getOrigin(),
-                request.getDestination(),
-                request.getDepartureDate(),
-                request.getReturnDate(),
-                request.getPassengers());
+        return flightService.searchLowestPrice(request);
     }
 
     @PostMapping("/trackings")

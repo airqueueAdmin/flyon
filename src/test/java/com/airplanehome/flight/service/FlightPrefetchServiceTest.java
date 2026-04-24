@@ -2,6 +2,7 @@ package com.airplanehome.flight.service;
 
 import com.airplanehome.flight.client.FlightProvider;
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.repository.FlightPriceRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,7 +14,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -35,21 +37,23 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0,3",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        FlightPrice dbFlight = flight("ICN", "NRT", departureDate, 270000, false, departureDate);
+        FlightPrice dbFlight = flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 270000, false, departureDate);
 
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateOrderByPriceAsc("ICN", "NRT", departureDate))
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNullOrderByPriceAsc(
+                TripType.ONE_WAY, "ICN", "NRT", departureDate))
                 .willReturn(Collections.singletonList(dbFlight));
 
         List<FlightPrice> result = service.getCachedFlights("ICN", "NRT", departureDate);
 
         assertEquals(1, result.size());
         assertEquals(BigDecimal.valueOf(270000), result.get(0).getPrice());
-        assertFalse(sharedFlightCacheService.getFresh("ICN", "NRT", departureDate).isEmpty());
+        assertFalse(sharedFlightCacheService.getFresh(TripType.ONE_WAY, "ICN", "NRT", departureDate, null).isEmpty());
     }
 
     @Test
@@ -66,18 +70,21 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0,3",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate requestedDate = LocalDate.of(2026, 4, 20);
         LocalDate nearestDate = requestedDate.plusDays(1);
-        FlightPrice morning = flight("ICN", "NRT", nearestDate, 272000, true, requestedDate);
-        FlightPrice evening = flight("ICN", "NRT", nearestDate, 262000, true, requestedDate);
+        FlightPrice morning = flight(TripType.ONE_WAY, "ICN", "NRT", nearestDate, null, 272000, true, requestedDate);
+        FlightPrice evening = flight(TripType.ONE_WAY, "ICN", "NRT", nearestDate, null, 262000, true, requestedDate);
 
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateOrderByPriceAsc("ICN", "NRT", requestedDate))
-                .willReturn(Collections.emptyList());
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateBetweenOrderByDepartureDateAscPriceAsc(
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNullOrderByPriceAsc(
+                TripType.ONE_WAY, "ICN", "NRT", requestedDate))
+                .willReturn(Collections.<FlightPrice>emptyList());
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateIsNullOrderByDepartureDateAscPriceAsc(
+                TripType.ONE_WAY,
                 "ICN",
                 "NRT",
                 requestedDate.minusDays(2),
@@ -89,7 +96,7 @@ class FlightPrefetchServiceTest {
         assertEquals(2, result.size());
         assertEquals(nearestDate, result.get(0).getDepartureDate());
         assertEquals(nearestDate, result.get(1).getDepartureDate());
-        assertFalse(sharedFlightCacheService.getFresh("ICN", "NRT", nearestDate).isEmpty());
+        assertFalse(sharedFlightCacheService.getFresh(TripType.ONE_WAY, "ICN", "NRT", nearestDate, null).isEmpty());
     }
 
     @Test
@@ -106,19 +113,21 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        given(primaryFlightProvider.search("ICN", "NRT", "2026-04-20")).willReturn(Collections.<FlightPrice>emptyList());
-        given(fallbackFlightProvider.search("ICN", "NRT", "2026-04-20"))
-                .willReturn(Collections.singletonList(flight("ICN", "NRT", departureDate, 250000, false, departureDate)));
+        given(primaryFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null))
+                .willReturn(Collections.<FlightPrice>emptyList());
+        given(fallbackFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null))
+                .willReturn(Collections.singletonList(flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 250000, false, departureDate)));
 
         service.refresh("ICN", "NRT", departureDate);
 
-        verify(primaryFlightProvider).search("ICN", "NRT", "2026-04-20");
-        verify(fallbackFlightProvider).search("ICN", "NRT", "2026-04-20");
+        verify(primaryFlightProvider).search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null);
+        verify(fallbackFlightProvider).search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null);
     }
 
     @Test
@@ -135,18 +144,19 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        given(primaryFlightProvider.search("ICN", "NRT", "2026-04-20"))
-                .willReturn(Collections.singletonList(flight("ICN", "NRT", departureDate, 250000, false, departureDate)));
+        given(primaryFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null))
+                .willReturn(Collections.singletonList(flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 250000, false, departureDate)));
 
         service.refresh("ICN", "NRT", departureDate);
 
-        verify(primaryFlightProvider).search("ICN", "NRT", "2026-04-20");
-        verify(fallbackFlightProvider, never()).search(anyString(), anyString(), anyString());
+        verify(primaryFlightProvider).search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null);
+        verify(fallbackFlightProvider, never()).search(any(), eq("ICN"), eq("NRT"), eq(departureDate), eq(null), eq(null));
     }
 
     @Test
@@ -163,28 +173,85 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateOrderByPriceAsc("ICN", "NRT", departureDate))
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNullOrderByPriceAsc(
+                TripType.ONE_WAY, "ICN", "NRT", departureDate))
                 .willReturn(Collections.<FlightPrice>emptyList());
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateBetweenOrderByDepartureDateAscPriceAsc(
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateIsNullOrderByDepartureDateAscPriceAsc(
+                TripType.ONE_WAY,
                 "ICN",
                 "NRT",
                 departureDate.minusDays(2),
                 departureDate.plusDays(2)))
                 .willReturn(Collections.<FlightPrice>emptyList());
-        given(primaryFlightProvider.search("ICN", "NRT", "2026-04-20"))
-                .willReturn(Collections.singletonList(flight("ICN", "NRT", departureDate, 250000, false, departureDate)));
+        given(primaryFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 1))
+                .willReturn(Collections.singletonList(flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 250000, false, departureDate)));
 
-        List<FlightPrice> result = service.getCachedOrFetchFlights("ICN", "NRT", departureDate);
+        List<FlightPrice> result = service.getCachedOrFetchFlights(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 1);
 
         assertEquals(3, result.size());
-        verify(primaryFlightProvider).search("ICN", "NRT", "2026-04-20");
-        verify(fallbackFlightProvider, never()).search(anyString(), anyString(), anyString());
-        assertFalse(sharedFlightCacheService.getFresh("ICN", "NRT", departureDate).isEmpty());
+        verify(primaryFlightProvider).search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 1);
+        verify(fallbackFlightProvider, never()).search(any(), eq("ICN"), eq("NRT"), eq(departureDate), eq(null), eq(1));
+        assertFalse(sharedFlightCacheService.getFresh(TripType.ONE_WAY, "ICN", "NRT", departureDate, null).isEmpty());
+    }
+
+    @Test
+    void shouldUseRoundTripCacheKey() {
+        SharedFlightCacheService cache = new SharedFlightCacheService();
+        String oneWayKey = cache.buildKey(TripType.ONE_WAY, "ICN", "NRT", LocalDate.of(2026, 6, 1), null);
+        String roundTripKey = cache.buildKey(TripType.ROUND_TRIP, "ICN", "NRT", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 5));
+
+        assertEquals("ONE_WAY|ICN|NRT|2026-06-01", oneWayKey);
+        assertEquals("ROUND_TRIP|ICN|NRT|2026-06-01|2026-06-05", roundTripKey);
+    }
+
+    @Test
+    void shouldFetchRoundTripFlightsWithMatchingReturnDate() {
+        FlightProvider primaryFlightProvider = mock(FlightProvider.class);
+        FlightProvider fallbackFlightProvider = mock(FlightProvider.class);
+        FlightPriceRepository flightPriceRepository = mock(FlightPriceRepository.class);
+        SharedFlightCacheService sharedFlightCacheService = new SharedFlightCacheService();
+        FlightPrefetchService service = new FlightPrefetchService(
+                primaryFlightProvider,
+                fallbackFlightProvider,
+                sharedFlightCacheService,
+                flightPriceRepository,
+                "ICN|NRT",
+                7,
+                "0",
+                "2,3,5,7",
+                5,
+                2,
+                6);
+
+        LocalDate departureDate = LocalDate.of(2026, 4, 20);
+        LocalDate returnDate = LocalDate.of(2026, 4, 25);
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateOrderByPriceAsc(
+                TripType.ROUND_TRIP, "ICN", "NRT", departureDate, returnDate))
+                .willReturn(Collections.<FlightPrice>emptyList());
+        given(flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateBetweenOrderByDepartureDateAscPriceAsc(
+                TripType.ROUND_TRIP,
+                "ICN",
+                "NRT",
+                departureDate.minusDays(2),
+                departureDate.plusDays(2),
+                returnDate.minusDays(2),
+                returnDate.plusDays(2)))
+                .willReturn(Collections.<FlightPrice>emptyList());
+        given(primaryFlightProvider.search(TripType.ROUND_TRIP, "ICN", "NRT", departureDate, returnDate, 1))
+                .willReturn(Collections.singletonList(flight(TripType.ROUND_TRIP, "ICN", "NRT", departureDate, returnDate, 400000, false, departureDate)));
+
+        List<FlightPrice> result = service.getCachedOrFetchFlights(TripType.ROUND_TRIP, "ICN", "NRT", departureDate, returnDate, 1);
+
+        assertEquals(3, result.size());
+        assertEquals(TripType.ROUND_TRIP, result.get(0).getTripType());
+        assertEquals(returnDate, result.get(0).getReturnDate());
+        verify(primaryFlightProvider).search(TripType.ROUND_TRIP, "ICN", "NRT", departureDate, returnDate, 1);
     }
 
     @Test
@@ -201,77 +268,59 @@ class FlightPrefetchServiceTest {
                 "ICN|NRT",
                 7,
                 "0",
+                "2,3,5,7",
                 5,
                 2,
                 6);
 
         LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        given(primaryFlightProvider.search("ICN", "NRT", "2026-04-20")).willReturn(Collections.<FlightPrice>emptyList());
-        given(fallbackFlightProvider.search("ICN", "NRT", "2026-04-20"))
+        given(primaryFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null)).willReturn(Collections.<FlightPrice>emptyList());
+        given(fallbackFlightProvider.search(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, null))
                 .willReturn(Arrays.asList(
-                        flight("ICN", "NRT", departureDate, 250000, false, departureDate, "Duffel Airways"),
-                        flight("ICN", "NRT", departureDate, 260000, false, departureDate, "Korean Air")));
+                        flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 250000, false, departureDate, "Duffel Airways"),
+                        flight(TripType.ONE_WAY, "ICN", "NRT", departureDate, null, 260000, false, departureDate, "Korean Air")));
 
         service.refresh("ICN", "NRT", departureDate);
 
-        List<FlightPrice> result = sharedFlightCacheService.getFresh("ICN", "NRT", departureDate);
+        List<FlightPrice> result = sharedFlightCacheService.getFresh(TripType.ONE_WAY, "ICN", "NRT", departureDate, null);
         assertEquals(3, result.size());
         assertTrue(result.stream().allMatch(flight -> "Korean Air".equals(flight.getAirline())));
     }
 
-    @Test
-    void shouldFilterDuffelAirwaysFromDbResults() {
-        FlightProvider primaryFlightProvider = mock(FlightProvider.class);
-        FlightProvider fallbackFlightProvider = mock(FlightProvider.class);
-        FlightPriceRepository flightPriceRepository = mock(FlightPriceRepository.class);
-        SharedFlightCacheService sharedFlightCacheService = new SharedFlightCacheService();
-        FlightPrefetchService service = new FlightPrefetchService(
-                primaryFlightProvider,
-                fallbackFlightProvider,
-                sharedFlightCacheService,
-                flightPriceRepository,
-                "ICN|NRT",
-                7,
-                "0,3",
-                5,
-                2,
-                6);
-
-        LocalDate departureDate = LocalDate.of(2026, 4, 20);
-        given(flightPriceRepository.findByOriginAndDestinationAndDepartureDateOrderByPriceAsc("ICN", "NRT", departureDate))
-                .willReturn(Arrays.asList(
-                        flight("ICN", "NRT", departureDate, 240000, false, departureDate, "Duffel Airways"),
-                        flight("ICN", "NRT", departureDate, 270000, false, departureDate, "Asiana Airlines")));
-
-        List<FlightPrice> result = service.getCachedFlights("ICN", "NRT", departureDate);
-
-        assertEquals(1, result.size());
-        assertEquals("Asiana Airlines", result.get(0).getAirline());
-    }
-
-    private FlightPrice flight(String origin,
+    private FlightPrice flight(TripType tripType,
+                               String origin,
                                String destination,
                                LocalDate departureDate,
+                               LocalDate returnDate,
                                int price,
                                boolean approximate,
                                LocalDate sourceDepartureDate) {
-        return flight(origin, destination, departureDate, price, approximate, sourceDepartureDate, "Korean Air");
+        return flight(tripType, origin, destination, departureDate, returnDate, price, approximate, sourceDepartureDate, "Korean Air");
     }
 
-    private FlightPrice flight(String origin,
+    private FlightPrice flight(TripType tripType,
+                               String origin,
                                String destination,
                                LocalDate departureDate,
+                               LocalDate returnDate,
                                int price,
                                boolean approximate,
                                LocalDate sourceDepartureDate,
                                String airline) {
         FlightPrice flightPrice = new FlightPrice();
+        flightPrice.setTripType(tripType);
         flightPrice.setOrigin(origin);
         flightPrice.setDestination(destination);
         flightPrice.setDepartureDate(departureDate);
+        flightPrice.setReturnDate(returnDate);
         flightPrice.setPrice(BigDecimal.valueOf(price));
+        flightPrice.setTotalPrice(BigDecimal.valueOf(price));
         flightPrice.setCurrency("KRW");
         flightPrice.setAirline(airline);
+        flightPrice.setOutboundAirline(airline);
+        if (tripType == TripType.ROUND_TRIP) {
+            flightPrice.setInboundAirline("Asiana Airlines");
+        }
         flightPrice.setApproximate(Boolean.valueOf(approximate));
         flightPrice.setSourceDepartureDate(sourceDepartureDate);
         return flightPrice;

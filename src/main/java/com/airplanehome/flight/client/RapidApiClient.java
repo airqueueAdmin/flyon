@@ -1,28 +1,29 @@
 package com.airplanehome.flight.client;
 
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.TripType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -47,6 +48,7 @@ public class RapidApiClient {
     private final String rapidApiHost;
     private final String autoCompleteUrl;
     private final String baseUrl;
+    private final String roundTripBaseUrl;
     private final String market;
     private final String locale;
     private final String currency;
@@ -60,6 +62,7 @@ public class RapidApiClient {
                           @Value("${rapidapi.host}") String rapidApiHost,
                           @Value("${rapidapi.auto-complete-url}") String autoCompleteUrl,
                           @Value("${rapidapi.base-url}") String baseUrl,
+                          @Value("${rapidapi.round-trip-base-url:}") String roundTripBaseUrl,
                           @Value("${rapidapi.market:US}") String market,
                           @Value("${rapidapi.locale:en-US}") String locale,
                           @Value("${rapidapi.currency:USD}") String currency,
@@ -69,14 +72,20 @@ public class RapidApiClient {
         this.rapidApiHost = rapidApiHost;
         this.autoCompleteUrl = autoCompleteUrl;
         this.baseUrl = baseUrl;
+        this.roundTripBaseUrl = roundTripBaseUrl;
         this.market = market;
         this.locale = locale;
         this.currency = currency;
         this.maxCallsPerHour = maxCallsPerHour;
     }
 
-    public List<FlightPrice> searchFlights(String origin, String destination, LocalDate departureDate,
-                                           LocalDate returnDate, Integer passengers) {
+    public List<FlightPrice> searchFlights(TripType tripType,
+                                           String origin,
+                                           String destination,
+                                           LocalDate departureDate,
+                                           LocalDate returnDate,
+                                           Integer adults) {
+        TripType resolvedTripType = tripType == null ? (returnDate == null ? TripType.ONE_WAY : TripType.ROUND_TRIP) : tripType;
         if (isCircuitOpen()) {
             log.warn("RapidAPI circuit open until={} - skipping primary call", circuitOpenUntil);
             return Collections.emptyList();
@@ -94,47 +103,175 @@ public class RapidApiClient {
                 return Collections.emptyList();
             }
 
-            String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                    .queryParam("placeIdFrom", originIds.getSkyId())
-                    .queryParam("placeIdTo", destinationIds.getSkyId())
-                    .queryParam("departDate", departureDate)
-                    .queryParam("adults", passengers == null ? 1 : passengers)
-                    .queryParam("market", market)
-                    .queryParam("locale", locale)
-                    .queryParam("currency", currency)
-                    .build(true)
-                    .toUriString();
-
-            if (!tryAcquireApiCallSlot()) {
-                log.info("API_CALL_SKIPPED url={} reason=rate-limit", url);
-                return Collections.emptyList();
+            if (resolvedTripType.isRoundTrip()) {
+                if (returnDate == null) {
+                    return Collections.emptyList();
+                }
+                if (StringUtils.hasText(roundTripBaseUrl)) {
+                    List<FlightPrice> directRoundTrip = searchRoundTripEndpoint(
+                            headers, origin, destination, departureDate, returnDate, adults, originIds, destinationIds);
+                    if (!directRoundTrip.isEmpty()) {
+                        return directRoundTrip;
+                    }
+                }
+                return combineRoundTripResults(headers, origin, destination, departureDate, returnDate, adults, originIds, destinationIds);
             }
-            ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<Void>(headers),
-                    JsonNode.class);
 
-            List<FlightPrice> prices = extractFlightPrices(
-                    response.getBody(),
-                    origin,
-                    destination,
-                    departureDate,
-                    returnDate,
-                    passengers);
-            if (prices.isEmpty()) {
-                log.info("RapidAPI flight search call succeeded but returned no flight prices url={}", url);
-            }
-            return prices;
+            return searchOneWayEndpoint(headers, origin, destination, departureDate, null, adults, originIds, destinationIds);
         } catch (HttpClientErrorException.TooManyRequests exception) {
             openCircuit();
             log.warn("RapidAPI quota exceeded (429) - using fallback");
             return Collections.emptyList();
         } catch (RestClientException exception) {
-            log.error("RapidAPI flight search failed origin={} destination={} departureDate={} returnDate={}",
-                    origin, destination, departureDate, returnDate, exception);
+            log.error("RapidAPI flight search failed tripType={} origin={} destination={} departureDate={} returnDate={}",
+                    resolvedTripType, origin, destination, departureDate, returnDate, exception);
             return Collections.emptyList();
         }
+    }
+
+    private List<FlightPrice> searchRoundTripEndpoint(HttpHeaders headers,
+                                                      String origin,
+                                                      String destination,
+                                                      LocalDate departureDate,
+                                                      LocalDate returnDate,
+                                                      Integer adults,
+                                                      LocationIds originIds,
+                                                      LocationIds destinationIds) {
+        String url = buildSearchUrl(roundTripBaseUrl, originIds, destinationIds, departureDate, returnDate, adults);
+        JsonNode body = fetchSearchResponse(headers, url);
+        if (body == null) {
+            return Collections.emptyList();
+        }
+        return extractFlightPrices(body, TripType.ROUND_TRIP, origin, destination, departureDate, returnDate, adults);
+    }
+
+    private List<FlightPrice> combineRoundTripResults(HttpHeaders headers,
+                                                      String origin,
+                                                      String destination,
+                                                      LocalDate departureDate,
+                                                      LocalDate returnDate,
+                                                      Integer adults,
+                                                      LocationIds originIds,
+                                                      LocationIds destinationIds) {
+        List<FlightPrice> outboundFlights = searchOneWayEndpoint(
+                headers,
+                origin,
+                destination,
+                departureDate,
+                null,
+                adults,
+                originIds,
+                destinationIds);
+        List<FlightPrice> inboundFlights = searchOneWayEndpoint(
+                headers,
+                destination,
+                origin,
+                returnDate,
+                null,
+                adults,
+                destinationIds,
+                originIds);
+        if (outboundFlights.isEmpty() || inboundFlights.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<FlightPrice> combinations = new ArrayList<FlightPrice>();
+        int outboundLimit = Math.min(3, outboundFlights.size());
+        int inboundLimit = Math.min(3, inboundFlights.size());
+        for (int outboundIndex = 0; outboundIndex < outboundLimit; outboundIndex++) {
+            for (int inboundIndex = 0; inboundIndex < inboundLimit; inboundIndex++) {
+                combinations.add(combineAsRoundTrip(
+                        origin,
+                        destination,
+                        departureDate,
+                        returnDate,
+                        adults,
+                        outboundFlights.get(outboundIndex),
+                        inboundFlights.get(inboundIndex)));
+            }
+        }
+        combinations.sort(Comparator.comparing(FlightPrice::getPrice));
+        return combinations;
+    }
+
+    private FlightPrice combineAsRoundTrip(String origin,
+                                           String destination,
+                                           LocalDate departureDate,
+                                           LocalDate returnDate,
+                                           Integer adults,
+                                           FlightPrice outbound,
+                                           FlightPrice inbound) {
+        BigDecimal outboundPrice = outbound.getPrice() == null ? BigDecimal.ZERO : outbound.getPrice();
+        BigDecimal inboundPrice = inbound.getPrice() == null ? BigDecimal.ZERO : inbound.getPrice();
+
+        FlightPrice combined = new FlightPrice();
+        combined.setTripType(TripType.ROUND_TRIP);
+        combined.setOrigin(origin);
+        combined.setDestination(destination);
+        combined.setDepartureDate(departureDate);
+        combined.setReturnDate(returnDate);
+        combined.setPassengers(adults == null ? 1 : adults);
+        combined.setCurrency(outbound.getCurrency());
+        combined.setProvider(rapidApiHost);
+        combined.setTotalPrice(outboundPrice.add(inboundPrice));
+        combined.setPrice(outboundPrice.add(inboundPrice));
+        combined.setAirline(outbound.getAirline());
+        combined.setOutboundAirline(outbound.getOutboundAirline() == null ? outbound.getAirline() : outbound.getOutboundAirline());
+        combined.setInboundAirline(inbound.getOutboundAirline() == null ? inbound.getAirline() : inbound.getOutboundAirline());
+        combined.setDepartureTime(outbound.getDepartureTime());
+        combined.setArrivalTime(outbound.getArrivalTime());
+        combined.setReturnDepartureTime(inbound.getDepartureTime());
+        combined.setReturnArrivalTime(inbound.getArrivalTime());
+        return combined;
+    }
+
+    private List<FlightPrice> searchOneWayEndpoint(HttpHeaders headers,
+                                                   String origin,
+                                                   String destination,
+                                                   LocalDate departureDate,
+                                                   LocalDate returnDate,
+                                                   Integer adults,
+                                                   LocationIds originIds,
+                                                   LocationIds destinationIds) {
+        String url = buildSearchUrl(baseUrl, originIds, destinationIds, departureDate, returnDate, adults);
+        JsonNode body = fetchSearchResponse(headers, url);
+        if (body == null) {
+            return Collections.emptyList();
+        }
+        return extractFlightPrices(body, TripType.ONE_WAY, origin, destination, departureDate, null, adults);
+    }
+
+    private JsonNode fetchSearchResponse(HttpHeaders headers, String url) {
+        if (!tryAcquireApiCallSlot()) {
+            log.info("API_CALL_SKIPPED url={} reason=rate-limit", url);
+            return null;
+        }
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<Void>(headers),
+                JsonNode.class);
+        return response.getBody();
+    }
+
+    private String buildSearchUrl(String searchUrl,
+                                  LocationIds originIds,
+                                  LocationIds destinationIds,
+                                  LocalDate departureDate,
+                                  LocalDate returnDate,
+                                  Integer adults) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(searchUrl)
+                .queryParam("placeIdFrom", originIds.getSkyId())
+                .queryParam("placeIdTo", destinationIds.getSkyId())
+                .queryParam("departDate", departureDate)
+                .queryParam("adults", adults == null ? 1 : adults)
+                .queryParam("market", market)
+                .queryParam("locale", locale)
+                .queryParam("currency", currency);
+        if (returnDate != null) {
+            builder.queryParam("returnDate", returnDate);
+        }
+        return builder.build(true).toUriString();
     }
 
     private LocationIds resolveLocation(String userInput, HttpHeaders headers) {
@@ -218,14 +355,20 @@ public class RapidApiClient {
         return fallback;
     }
 
-    private List<FlightPrice> extractFlightPrices(JsonNode body, String origin, String destination,
-                                                  LocalDate departureDate, LocalDate returnDate, Integer passengers) {
+    private List<FlightPrice> extractFlightPrices(JsonNode body,
+                                                  TripType tripType,
+                                                  String origin,
+                                                  String destination,
+                                                  LocalDate departureDate,
+                                                  LocalDate returnDate,
+                                                  Integer passengers) {
         if (body == null) {
             return Collections.emptyList();
         }
 
         List<FlightPrice> itineraryFlights = extractItineraryFlightPrices(
                 body.path("data").path("itinerary"),
+                tripType,
                 origin,
                 destination,
                 departureDate,
@@ -238,6 +381,7 @@ public class RapidApiClient {
 
         List<FlightPrice> bucketFlights = extractBucketFlights(
                 body.path("data").path("itineraries").path("buckets"),
+                tripType,
                 origin,
                 destination,
                 departureDate,
@@ -250,6 +394,7 @@ public class RapidApiClient {
 
         List<FlightPrice> searchFlights = extractSearchItineraries(
                 body.path("data").path("itineraries"),
+                tripType,
                 origin,
                 destination,
                 departureDate,
@@ -262,6 +407,7 @@ public class RapidApiClient {
 
         List<FlightPrice> fallbackSearchFlights = extractSearchItineraries(
                 body.path("itineraries"),
+                tripType,
                 origin,
                 destination,
                 departureDate,
@@ -283,18 +429,21 @@ public class RapidApiClient {
             }
 
             FlightPrice flightPrice = new FlightPrice();
+            flightPrice.setTripType(tripType);
             flightPrice.setOrigin(origin);
             flightPrice.setDestination(destination);
             flightPrice.setDepartureDate(departureDate);
             flightPrice.setReturnDate(returnDate);
             flightPrice.setPassengers(passengers);
-            flightPrice.setPrice(price);
+            applyPrice(flightPrice, price);
             flightPrice.setCurrency(readCurrency(offerNode,
                     "currency",
                     "price.currency",
                     "purchaseLinks.0.currency"));
             flightPrice.setProvider(rapidApiHost);
-            flightPrice.setAirline(readText(offerNode, "airline", "legs.0.carriers.marketing.0.name", "carriers.0.name"));
+            String airline = readText(offerNode, "airline", "legs.0.carriers.marketing.0.name", "carriers.0.name");
+            flightPrice.setAirline(airline);
+            flightPrice.setOutboundAirline(airline);
             flightPrice.setDepartureTime(readDateTime(offerNode,
                     "departureTime",
                     "legs.0.departure",
@@ -303,6 +452,7 @@ public class RapidApiClient {
                     "arrivalTime",
                     "legs.0.arrival",
                     "segments.0.arrival"));
+            applyInboundLegIfPresent(flightPrice, offerNode);
             flights.add(flightPrice);
         }
 
@@ -310,8 +460,13 @@ public class RapidApiClient {
         return flights;
     }
 
-    private List<FlightPrice> extractBucketFlights(JsonNode bucketsNode, String origin, String destination,
-                                                   LocalDate departureDate, LocalDate returnDate, Integer passengers) {
+    private List<FlightPrice> extractBucketFlights(JsonNode bucketsNode,
+                                                   TripType tripType,
+                                                   String origin,
+                                                   String destination,
+                                                   LocalDate departureDate,
+                                                   LocalDate returnDate,
+                                                   Integer passengers) {
         if (bucketsNode == null || !bucketsNode.isArray()) {
             return Collections.emptyList();
         }
@@ -342,12 +497,13 @@ public class RapidApiClient {
                 }
 
                 FlightPrice flightPrice = new FlightPrice();
+                flightPrice.setTripType(tripType);
                 flightPrice.setOrigin(origin);
                 flightPrice.setDestination(destination);
                 flightPrice.setDepartureDate(departureDate);
                 flightPrice.setReturnDate(returnDate);
                 flightPrice.setPassengers(passengers);
-                flightPrice.setPrice(price);
+                applyPrice(flightPrice, price);
                 flightPrice.setCurrency(readCurrency(item, "price.currency", "currency"));
                 flightPrice.setProvider(rapidApiHost);
                 String airline = readText(
@@ -361,8 +517,10 @@ public class RapidApiClient {
                 }
 
                 flightPrice.setAirline(airline);
+                flightPrice.setOutboundAirline(airline);
                 flightPrice.setDepartureTime(departureTime);
                 flightPrice.setArrivalTime(arrivalTime);
+                applyInboundLegIfPresent(flightPrice, item);
                 flights.add(flightPrice);
             }
         }
@@ -370,8 +528,13 @@ public class RapidApiClient {
         return flights;
     }
 
-    private List<FlightPrice> extractSearchItineraries(JsonNode itinerariesNode, String origin, String destination,
-                                                       LocalDate departureDate, LocalDate returnDate, Integer passengers) {
+    private List<FlightPrice> extractSearchItineraries(JsonNode itinerariesNode,
+                                                       TripType tripType,
+                                                       String origin,
+                                                       String destination,
+                                                       LocalDate departureDate,
+                                                       LocalDate returnDate,
+                                                       Integer passengers) {
         if (itinerariesNode == null || !itinerariesNode.isArray()) {
             return Collections.emptyList();
         }
@@ -391,12 +554,13 @@ public class RapidApiClient {
             }
 
             FlightPrice flightPrice = new FlightPrice();
+            flightPrice.setTripType(tripType);
             flightPrice.setOrigin(origin);
             flightPrice.setDestination(destination);
             flightPrice.setDepartureDate(departureDate);
             flightPrice.setReturnDate(returnDate);
             flightPrice.setPassengers(passengers);
-            flightPrice.setPrice(price);
+            applyPrice(flightPrice, price);
             flightPrice.setCurrency(readCurrency(
                     pricingOption,
                     "currency",
@@ -409,21 +573,29 @@ public class RapidApiClient {
             if (!StringUtils.hasText(flightPrice.getProvider())) {
                 flightPrice.setProvider(rapidApiHost);
             }
-            flightPrice.setAirline(readText(
+            String airline = readText(
                     firstSegment,
                     "marketingCarrier.name",
                     "operatingCarrier.name",
-                    "carriers.marketing.0.name"));
+                    "carriers.marketing.0.name");
+            flightPrice.setAirline(airline);
+            flightPrice.setOutboundAirline(airline);
             flightPrice.setDepartureTime(readDateTime(firstLeg, "departure"));
             flightPrice.setArrivalTime(readDateTime(firstLeg, "arrival"));
+            applyInboundLegIfPresent(flightPrice, itineraryNode);
             flights.add(flightPrice);
         }
 
         return flights;
     }
 
-    private List<FlightPrice> extractItineraryFlightPrices(JsonNode itineraryNode, String origin, String destination,
-                                                           LocalDate departureDate, LocalDate returnDate, Integer passengers) {
+    private List<FlightPrice> extractItineraryFlightPrices(JsonNode itineraryNode,
+                                                           TripType tripType,
+                                                           String origin,
+                                                           String destination,
+                                                           LocalDate departureDate,
+                                                           LocalDate returnDate,
+                                                           Integer passengers) {
         if (itineraryNode == null || itineraryNode.isMissingNode() || itineraryNode.isNull()) {
             return Collections.emptyList();
         }
@@ -445,27 +617,57 @@ public class RapidApiClient {
             }
 
             FlightPrice flightPrice = new FlightPrice();
+            flightPrice.setTripType(tripType);
             flightPrice.setOrigin(origin);
             flightPrice.setDestination(destination);
             flightPrice.setDepartureDate(departureDate);
             flightPrice.setReturnDate(returnDate);
             flightPrice.setPassengers(passengers);
-            flightPrice.setPrice(totalPrice);
+            applyPrice(flightPrice, totalPrice);
             flightPrice.setCurrency(readCurrency(pricingOption, "currency", "price.currency", "fare.currency"));
             flightPrice.setProvider(readText(pricingOption, "agents.0.name"));
             if (!StringUtils.hasText(flightPrice.getProvider())) {
                 flightPrice.setProvider(rapidApiHost);
             }
-            flightPrice.setAirline(readText(
+            String airline = readText(
                     firstSegment,
                     "marketingCarrier.name",
-                    "operatingCarrier.name"));
+                    "operatingCarrier.name");
+            flightPrice.setAirline(airline);
+            flightPrice.setOutboundAirline(airline);
             flightPrice.setDepartureTime(readDateTime(firstLeg, "departure"));
             flightPrice.setArrivalTime(readDateTime(firstLeg, "arrival"));
+            applyInboundLegIfPresent(flightPrice, itineraryNode);
             flights.add(flightPrice);
         }
 
         return flights;
+    }
+
+    private void applyInboundLegIfPresent(FlightPrice flightPrice, JsonNode node) {
+        JsonNode secondLeg = readNode(node, "legs.1");
+        if (secondLeg == null || secondLeg.isMissingNode() || secondLeg.isNull()) {
+            return;
+        }
+        JsonNode secondSegment = secondLeg.path("segments").path(0);
+        String inboundAirline = readText(
+                secondSegment,
+                "marketingCarrier.name",
+                "operatingCarrier.name",
+                "carriers.marketing.0.name");
+        if (StringUtils.hasText(inboundAirline)) {
+            flightPrice.setInboundAirline(inboundAirline);
+        }
+        flightPrice.setReturnDepartureTime(readDateTime(secondLeg, "departure"));
+        flightPrice.setReturnArrivalTime(readDateTime(secondLeg, "arrival"));
+        if (flightPrice.getReturnDepartureTime() != null) {
+            flightPrice.setTripType(TripType.ROUND_TRIP);
+        }
+    }
+
+    private void applyPrice(FlightPrice flightPrice, BigDecimal totalPrice) {
+        flightPrice.setTotalPrice(totalPrice);
+        flightPrice.setPrice(totalPrice);
     }
 
     private void collectOfferNodes(JsonNode node, List<JsonNode> offers) {
@@ -501,18 +703,13 @@ public class RapidApiClient {
                 "purchaseLinks.0.price.raw",
                 "purchaseLinks.0.price.amount");
         if (price != null) {
-            log.info("Parsed price from API: raw={}", price.stripTrailingZeros().toPlainString());
             return price;
         }
 
-        price = readNumericPrice(node,
+        return readNumericPrice(node,
                 "totalPrice",
                 "purchaseLinks.0.price",
                 "purchaseLinks.0.totalPrice");
-        if (price != null) {
-            log.info("Parsed price from API: raw={}", price.stripTrailingZeros().toPlainString());
-        }
-        return price;
     }
 
     private String readCurrency(JsonNode node, String... paths) {
@@ -684,5 +881,4 @@ public class RapidApiClient {
             return Instant.now().isAfter(expiresAt);
         }
     }
-
 }

@@ -2,11 +2,13 @@ package com.airplanehome.flight.service;
 
 import com.airplanehome.flight.client.FlightProvider;
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.repository.FlightPriceRepository;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +18,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.PostConstruct;
@@ -41,6 +44,7 @@ public class FlightPrefetchService {
     private final List<RouteDefinition> popularRoutes;
     private final int coverageDaysAhead;
     private final List<Integer> actualFetchOffsets;
+    private final List<Integer> roundTripDurations;
     private final int routesPerCycle;
     private final int alwaysHotRouteCount;
     private final int maxOnDemandCallsPerMinute;
@@ -56,6 +60,7 @@ public class FlightPrefetchService {
                                  @Value("${app.prefetch.routes:ICN|NRT,ICN|FUK,ICN|BKK,ICN|SFO}") String routesConfig,
                                  @Value("${app.prefetch.coverage-days-ahead:7}") int coverageDaysAhead,
                                  @Value("${app.prefetch.actual-fetch-offsets:0,3}") String actualFetchOffsets,
+                                 @Value("${app.prefetch.round-trip-durations:2,3,5,7}") String roundTripDurations,
                                  @Value("${app.prefetch.routes-per-cycle:5}") int routesPerCycle,
                                  @Value("${app.prefetch.always-hot-routes:2}") int alwaysHotRouteCount,
                                  @Value("${app.on-demand.max-calls-per-minute:6}") int maxOnDemandCallsPerMinute) {
@@ -66,6 +71,7 @@ public class FlightPrefetchService {
         this.popularRoutes = parseRoutes(routesConfig);
         this.coverageDaysAhead = coverageDaysAhead;
         this.actualFetchOffsets = parseOffsets(actualFetchOffsets);
+        this.roundTripDurations = parseOffsets(roundTripDurations);
         this.routesPerCycle = routesPerCycle;
         this.alwaysHotRouteCount = alwaysHotRouteCount;
         this.maxOnDemandCallsPerMinute = maxOnDemandCallsPerMinute;
@@ -79,9 +85,11 @@ public class FlightPrefetchService {
                 continue;
             }
             String key = sharedFlightCacheService.buildKey(
+                    resolveTripType(flightPrice.getTripType(), flightPrice.getReturnDate()),
                     flightPrice.getOrigin(),
                     flightPrice.getDestination(),
-                    flightPrice.getDepartureDate());
+                    flightPrice.getDepartureDate(),
+                    flightPrice.getReturnDate());
             List<FlightPrice> flights = grouped.get(key);
             if (flights == null) {
                 flights = new ArrayList<FlightPrice>();
@@ -92,10 +100,13 @@ public class FlightPrefetchService {
 
         for (List<FlightPrice> flights : grouped.values()) {
             FlightPrice first = flights.get(0);
+            TripType tripType = resolveTripType(first.getTripType(), first.getReturnDate());
             sharedFlightCacheService.warm(
+                    tripType,
                     first.getOrigin(),
                     first.getDestination(),
                     first.getDepartureDate(),
+                    first.getReturnDate(),
                     flights,
                     first.getPrefetchedAt());
         }
@@ -103,25 +114,44 @@ public class FlightPrefetchService {
     }
 
     public List<FlightPrice> getCachedFlights(String origin, String destination, LocalDate departureDate) {
+        return getCachedFlights(TripType.ONE_WAY, origin, destination, departureDate, null);
+    }
+
+    public List<FlightPrice> getCachedFlights(TripType tripType,
+                                              String origin,
+                                              String destination,
+                                              LocalDate departureDate,
+                                              LocalDate returnDate) {
         recordSearchRequest(origin, destination);
-        return getCachedFlightsInternal(origin, destination, departureDate);
+        return getCachedFlightsInternal(resolveTripType(tripType, returnDate), origin, destination, departureDate, returnDate);
     }
 
     @Transactional
     public List<FlightPrice> getCachedOrFetchFlights(String origin, String destination, LocalDate departureDate) {
+        return getCachedOrFetchFlights(TripType.ONE_WAY, origin, destination, departureDate, null, null);
+    }
+
+    @Transactional
+    public List<FlightPrice> getCachedOrFetchFlights(TripType tripType,
+                                                     String origin,
+                                                     String destination,
+                                                     LocalDate departureDate,
+                                                     LocalDate returnDate,
+                                                     Integer adults) {
+        TripType resolvedTripType = resolveTripType(tripType, returnDate);
         recordSearchRequest(origin, destination);
-        List<FlightPrice> cachedFlights = getCachedFlightsInternal(origin, destination, departureDate);
+        List<FlightPrice> cachedFlights = getCachedFlightsInternal(resolvedTripType, origin, destination, departureDate, returnDate);
         if (!cachedFlights.isEmpty()) {
             return cachedFlights;
         }
 
-        String key = sharedFlightCacheService.buildKey(origin, destination, departureDate);
+        String key = sharedFlightCacheService.buildKey(resolvedTripType, origin, destination, departureDate, returnDate);
         log.info("CACHE_MISS_ON_DEMAND key={}", key);
 
         ReentrantLock lock = getOnDemandLock(key);
         lock.lock();
         try {
-            cachedFlights = getCachedFlightsInternal(origin, destination, departureDate);
+            cachedFlights = getCachedFlightsInternal(resolvedTripType, origin, destination, departureDate, returnDate);
             if (!cachedFlights.isEmpty()) {
                 return cachedFlights;
             }
@@ -132,13 +162,19 @@ public class FlightPrefetchService {
             }
 
             log.info("ON_DEMAND_API_CALL key={}", key);
-            List<FlightPrice> fetchedFlights = searchWithFallback(origin, destination, departureDate);
+            List<FlightPrice> fetchedFlights = searchWithFallback(
+                    resolvedTripType,
+                    origin,
+                    destination,
+                    departureDate,
+                    returnDate,
+                    adults);
             if (fetchedFlights.isEmpty()) {
                 return Collections.emptyList();
             }
 
-            persistExpandedCoverage(origin, destination, departureDate, fetchedFlights);
-            return sharedFlightCacheService.getFresh(origin, destination, departureDate);
+            persistExpandedCoverage(resolvedTripType, origin, destination, departureDate, returnDate, fetchedFlights);
+            return sharedFlightCacheService.getFresh(resolvedTripType, origin, destination, departureDate, returnDate);
         } finally {
             lock.unlock();
             if (!lock.hasQueuedThreads()) {
@@ -147,50 +183,71 @@ public class FlightPrefetchService {
         }
     }
 
-    private List<FlightPrice> getCachedFlightsInternal(String origin, String destination, LocalDate departureDate) {
-        List<FlightPrice> fresh = sharedFlightCacheService.getFresh(origin, destination, departureDate);
+    private List<FlightPrice> getCachedFlightsInternal(TripType tripType,
+                                                       String origin,
+                                                       String destination,
+                                                       LocalDate departureDate,
+                                                       LocalDate returnDate) {
+        List<FlightPrice> fresh = sharedFlightCacheService.getFresh(tripType, origin, destination, departureDate, returnDate);
         if (!fresh.isEmpty()) {
-            log.info("CACHE_HIT key={}", sharedFlightCacheService.buildKey(origin, destination, departureDate));
+            log.info("CACHE_HIT key={}", sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
             logApproximateUsageIfNeeded(fresh);
             return fresh;
         }
 
-        if (sharedFlightCacheService.hasEntry(origin, destination, departureDate)) {
-            log.info("CACHE_HIT key={} stale=true", sharedFlightCacheService.buildKey(origin, destination, departureDate));
-            List<FlightPrice> stale = sharedFlightCacheService.getStale(origin, destination, departureDate);
+        if (sharedFlightCacheService.hasEntry(tripType, origin, destination, departureDate, returnDate)) {
+            log.info("CACHE_HIT key={} stale=true",
+                    sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
+            List<FlightPrice> stale = sharedFlightCacheService.getStale(tripType, origin, destination, departureDate, returnDate);
             logApproximateUsageIfNeeded(stale);
             return stale;
         }
 
-        log.info("CACHE_MISS key={}", sharedFlightCacheService.buildKey(origin, destination, departureDate));
-        List<FlightPrice> exactFromDb = findExactFromDb(origin, destination, departureDate);
+        log.info("CACHE_MISS key={}", sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
+        List<FlightPrice> exactFromDb = findExactFromDb(tripType, origin, destination, departureDate, returnDate);
         if (!exactFromDb.isEmpty()) {
             log.info("DB_FALLBACK_HIT key={} source=exact",
-                    sharedFlightCacheService.buildKey(origin, destination, departureDate));
-            sharedFlightCacheService.put(origin, destination, departureDate, exactFromDb);
+                    sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
+            sharedFlightCacheService.put(tripType, origin, destination, departureDate, returnDate, exactFromDb);
             log.info("CACHE_POPULATED_FROM_DB key={}",
-                    sharedFlightCacheService.buildKey(origin, destination, departureDate));
+                    sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
             logApproximateUsageIfNeeded(exactFromDb);
             return exactFromDb;
         }
 
-        List<FlightPrice> nearest = findNearestAvailable(origin, destination, departureDate);
+        List<FlightPrice> nearest = findNearestAvailable(tripType, origin, destination, departureDate, returnDate);
         if (!nearest.isEmpty()) {
-            log.info("APPROX_DATA_USED key={}", sharedFlightCacheService.buildKey(origin, destination, departureDate));
+            log.info("APPROX_DATA_USED key={}", sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
             return nearest;
         }
-        log.info("DB_FALLBACK_MISS key={}", sharedFlightCacheService.buildKey(origin, destination, departureDate));
+        log.info("DB_FALLBACK_MISS key={}", sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
         return Collections.emptyList();
     }
 
     public boolean isSupported(String origin, String destination, LocalDate departureDate) {
+        return isSupported(TripType.ONE_WAY, origin, destination, departureDate, null);
+    }
+
+    public boolean isSupported(TripType tripType,
+                               String origin,
+                               String destination,
+                               LocalDate departureDate,
+                               LocalDate returnDate) {
         if (departureDate == null) {
             return false;
         }
 
         LocalDate today = LocalDate.now();
-        if (departureDate.isBefore(today) || departureDate.isAfter(today.plusDays(coverageDaysAhead - 1))) {
+        LocalDate maxCoveredDate = today.plusDays(coverageDaysAhead - 1L);
+        if (departureDate.isBefore(today) || departureDate.isAfter(maxCoveredDate)) {
             return false;
+        }
+
+        TripType resolvedTripType = resolveTripType(tripType, returnDate);
+        if (resolvedTripType.isRoundTrip()) {
+            if (returnDate == null || returnDate.isBefore(departureDate) || returnDate.isAfter(maxCoveredDate)) {
+                return false;
+            }
         }
 
         for (RouteDefinition route : popularRoutes) {
@@ -207,42 +264,66 @@ public class FlightPrefetchService {
         List<RouteDefinition> selectedRoutes = selectRoutesForCycle();
         log.info("PREFETCH_ROTATION routes={}", selectedRoutes);
         for (RouteDefinition route : selectedRoutes) {
-            Map<LocalDate, List<FlightPrice>> coverageByDate = new HashMap<LocalDate, List<FlightPrice>>();
-            Map<LocalDate, LocalDate> exactFetchedDates = new HashMap<LocalDate, LocalDate>();
+            Map<SearchKey, List<FlightPrice>> coverageByKey = new HashMap<SearchKey, List<FlightPrice>>();
+            Map<SearchKey, SearchKey> exactFetchedKeys = new HashMap<SearchKey, SearchKey>();
+
             for (Integer offset : actualFetchOffsets) {
                 LocalDate departureDate = today.plusDays(offset.intValue());
-                if (exactFetchedDates.containsKey(departureDate)) {
-                    continue;
+                SearchKey oneWayKey = new SearchKey(TripType.ONE_WAY, route.getOrigin(), route.getDestination(), departureDate, null);
+                if (!exactFetchedKeys.containsKey(oneWayKey)) {
+                    fetchAndMergeCoverage(coverageByKey, exactFetchedKeys, route, TripType.ONE_WAY, departureDate, null);
                 }
-                List<FlightPrice> flights = searchWithFallback(route.getOrigin(), route.getDestination(), departureDate);
-                if (flights.isEmpty()) {
-                    log.info("API_CALL_SKIPPED key={} reason=no-data-or-provider-skipped",
-                            sharedFlightCacheService.buildKey(route.getOrigin(), route.getDestination(), departureDate));
-                    continue;
+
+                for (Integer duration : roundTripDurations) {
+                    LocalDate returnDate = departureDate.plusDays(duration.intValue());
+                    if (returnDate.isAfter(today.plusDays(coverageDaysAhead - 1L))) {
+                        continue;
+                    }
+                    SearchKey roundTripKey = new SearchKey(TripType.ROUND_TRIP, route.getOrigin(), route.getDestination(), departureDate, returnDate);
+                    if (!exactFetchedKeys.containsKey(roundTripKey)) {
+                        fetchAndMergeCoverage(coverageByKey, exactFetchedKeys, route, TripType.ROUND_TRIP, departureDate, returnDate);
+                    }
                 }
-                exactFetchedDates.put(departureDate, departureDate);
-                mergeCoverage(coverageByDate,
-                        buildExpandedCoverage(route.getOrigin(), route.getDestination(), departureDate, flights));
             }
-            persistCoverage(route.getOrigin(), route.getDestination(), coverageByDate);
+            persistCoverage(coverageByKey);
         }
     }
 
     @Transactional
     public void refresh(String origin, String destination, LocalDate departureDate) {
-        List<FlightPrice> flights = searchWithFallback(origin, destination, departureDate);
+        refresh(TripType.ONE_WAY, origin, destination, departureDate, null);
+    }
+
+    @Transactional
+    public void refresh(TripType tripType,
+                        String origin,
+                        String destination,
+                        LocalDate departureDate,
+                        LocalDate returnDate) {
+        TripType resolvedTripType = resolveTripType(tripType, returnDate);
+        List<FlightPrice> flights = searchWithFallback(resolvedTripType, origin, destination, departureDate, returnDate, null);
         if (flights.isEmpty()) {
             log.info("API_CALL_SKIPPED key={} reason=no-data-or-provider-skipped",
-                    sharedFlightCacheService.buildKey(origin, destination, departureDate));
+                    sharedFlightCacheService.buildKey(resolvedTripType, origin, destination, departureDate, returnDate));
             return;
         }
 
-        persistExpandedCoverage(origin, destination, departureDate, flights);
+        persistExpandedCoverage(resolvedTripType, origin, destination, departureDate, returnDate, flights);
     }
 
     public void evictCache(String origin, String destination, LocalDate departureDate) {
-        sharedFlightCacheService.evict(origin, destination, departureDate);
-        log.info("CACHE_EVICT key={}", sharedFlightCacheService.buildKey(origin, destination, departureDate));
+        evictCache(TripType.ONE_WAY, origin, destination, departureDate, null);
+    }
+
+    public void evictCache(TripType tripType,
+                           String origin,
+                           String destination,
+                           LocalDate departureDate,
+                           LocalDate returnDate) {
+        TripType resolvedTripType = resolveTripType(tripType, returnDate);
+        sharedFlightCacheService.evict(resolvedTripType, origin, destination, departureDate, returnDate);
+        log.info("CACHE_EVICT key={}",
+                sharedFlightCacheService.buildKey(resolvedTripType, origin, destination, departureDate, returnDate));
     }
 
     public void clearCache() {
@@ -254,6 +335,24 @@ public class FlightPrefetchService {
         String routeKey = normalizeRouteKey(origin, destination);
         Integer current = routeRequestCounts.get(routeKey);
         routeRequestCounts.put(routeKey, current == null ? 1 : current + 1);
+    }
+
+    private void fetchAndMergeCoverage(Map<SearchKey, List<FlightPrice>> coverageByKey,
+                                       Map<SearchKey, SearchKey> exactFetchedKeys,
+                                       RouteDefinition route,
+                                       TripType tripType,
+                                       LocalDate departureDate,
+                                       LocalDate returnDate) {
+        SearchKey requestedKey = new SearchKey(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate);
+        List<FlightPrice> flights = searchWithFallback(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate, null);
+        if (flights.isEmpty()) {
+            log.info("API_CALL_SKIPPED key={} reason=no-data-or-provider-skipped",
+                    sharedFlightCacheService.buildKey(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate));
+            return;
+        }
+        exactFetchedKeys.put(requestedKey, requestedKey);
+        mergeCoverage(coverageByKey,
+                buildExpandedCoverage(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate, flights));
     }
 
     private List<RouteDefinition> parseRoutes(String routesConfig) {
@@ -281,10 +380,6 @@ public class FlightPrefetchService {
                 continue;
             }
             offsets.add(Integer.valueOf(value));
-        }
-        if (offsets.isEmpty()) {
-            offsets.add(Integer.valueOf(0));
-            offsets.add(Integer.valueOf(3));
         }
         return offsets;
     }
@@ -348,11 +443,16 @@ public class FlightPrefetchService {
         return true;
     }
 
-    private List<FlightPrice> searchWithFallback(String origin, String destination, LocalDate departureDate) {
-        String key = sharedFlightCacheService.buildKey(origin, destination, departureDate);
+    private List<FlightPrice> searchWithFallback(TripType tripType,
+                                                 String origin,
+                                                 String destination,
+                                                 LocalDate departureDate,
+                                                 LocalDate returnDate,
+                                                 Integer adults) {
+        String key = sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate);
         log.info("API_CALL provider=rapidapi key={}", key);
         List<FlightPrice> primaryFlights = sanitizeFlights(
-                primaryFlightProvider.search(origin, destination, departureDate.toString()),
+                primaryFlightProvider.search(tripType, origin, destination, departureDate, returnDate, adults),
                 "rapidapi",
                 key);
         if (!primaryFlights.isEmpty()) {
@@ -364,7 +464,7 @@ public class FlightPrefetchService {
         log.info("FALLBACK_TO_DUFFEL key={}", key);
         log.info("API_CALL provider=duffel key={}", key);
         List<FlightPrice> fallbackFlights = sanitizeFlights(
-                fallbackFlightProvider.search(origin, destination, departureDate.toString()),
+                fallbackFlightProvider.search(tripType, origin, destination, departureDate, returnDate, adults),
                 "duffel",
                 key);
         if (!fallbackFlights.isEmpty()) {
@@ -377,39 +477,60 @@ public class FlightPrefetchService {
         return Collections.emptyList();
     }
 
-    private void persistExpandedCoverage(String origin, String destination, LocalDate fetchedDate, List<FlightPrice> flights) {
-        persistCoverage(origin, destination, buildExpandedCoverage(origin, destination, fetchedDate, flights));
+    private void persistExpandedCoverage(TripType tripType,
+                                        String origin,
+                                        String destination,
+                                        LocalDate fetchedDate,
+                                        LocalDate returnDate,
+                                        List<FlightPrice> flights) {
+        persistCoverage(buildExpandedCoverage(tripType, origin, destination, fetchedDate, returnDate, flights));
     }
 
-    private Map<LocalDate, List<FlightPrice>> buildExpandedCoverage(String origin,
+    private Map<SearchKey, List<FlightPrice>> buildExpandedCoverage(TripType tripType,
+                                                                    String origin,
                                                                     String destination,
                                                                     LocalDate fetchedDate,
+                                                                    LocalDate returnDate,
                                                                     List<FlightPrice> flights) {
         LocalDate today = LocalDate.now();
-        Map<LocalDate, List<FlightPrice>> coverageByDate = new HashMap<LocalDate, List<FlightPrice>>();
+        Map<SearchKey, List<FlightPrice>> coverageByKey = new HashMap<SearchKey, List<FlightPrice>>();
         for (FlightPrice flight : flights) {
-            for (FlightPrice bucketed : createBucketVariants(flight, fetchedDate, false, fetchedDate)) {
-                addCoverage(coverageByDate, fetchedDate, bucketed);
+            SearchKey exactKey = new SearchKey(tripType, origin, destination, fetchedDate, returnDate);
+            for (FlightPrice bucketed : createBucketVariants(flight, tripType, fetchedDate, returnDate, false, fetchedDate)) {
+                addCoverage(coverageByKey, exactKey, bucketed);
             }
 
             for (int delta = -2; delta <= 2; delta++) {
                 if (delta == 0) {
                     continue;
                 }
-                LocalDate approximatedDate = fetchedDate.plusDays(delta);
-                if (approximatedDate.isBefore(today) || approximatedDate.isAfter(today.plusDays(coverageDaysAhead - 1))) {
+                LocalDate approximatedDepartureDate = fetchedDate.plusDays(delta);
+                LocalDate approximatedReturnDate = returnDate == null ? null : returnDate.plusDays(delta);
+                if (approximatedDepartureDate.isBefore(today)
+                        || approximatedDepartureDate.isAfter(today.plusDays(coverageDaysAhead - 1L))) {
                     continue;
                 }
-                for (FlightPrice approximate : createBucketVariants(flight, approximatedDate, true, fetchedDate)) {
-                    addCoverage(coverageByDate, approximatedDate, approximate);
+                if (tripType.isRoundTrip() && (approximatedReturnDate == null
+                        || approximatedReturnDate.isAfter(today.plusDays(coverageDaysAhead - 1L)))) {
+                    continue;
+                }
+                SearchKey approximateKey = new SearchKey(tripType, origin, destination, approximatedDepartureDate, approximatedReturnDate);
+                for (FlightPrice approximate : createBucketVariants(
+                        flight,
+                        tripType,
+                        approximatedDepartureDate,
+                        approximatedReturnDate,
+                        true,
+                        fetchedDate)) {
+                    addCoverage(coverageByKey, approximateKey, approximate);
                 }
             }
         }
-        return coverageByDate;
+        return coverageByKey;
     }
 
-    private void mergeCoverage(Map<LocalDate, List<FlightPrice>> target, Map<LocalDate, List<FlightPrice>> source) {
-        for (Map.Entry<LocalDate, List<FlightPrice>> entry : source.entrySet()) {
+    private void mergeCoverage(Map<SearchKey, List<FlightPrice>> target, Map<SearchKey, List<FlightPrice>> source) {
+        for (Map.Entry<SearchKey, List<FlightPrice>> entry : source.entrySet()) {
             List<FlightPrice> flights = target.get(entry.getKey());
             if (flights == null) {
                 flights = new ArrayList<FlightPrice>();
@@ -419,51 +540,104 @@ public class FlightPrefetchService {
         }
     }
 
-    private void persistCoverage(String origin, String destination, Map<LocalDate, List<FlightPrice>> coverageByDate) {
-        if (coverageByDate.isEmpty()) {
+    private void persistCoverage(Map<SearchKey, List<FlightPrice>> coverageByKey) {
+        if (coverageByKey.isEmpty()) {
             return;
         }
 
-        List<String> summaries = new ArrayList<String>();
-        List<LocalDate> dates = new ArrayList<LocalDate>(coverageByDate.keySet());
-        Collections.sort(dates);
-        for (LocalDate date : dates) {
-            List<FlightPrice> flights = sanitizeFlights(coverageByDate.get(date), "persistence", normalizeRouteKey(origin, destination) + "|" + date);
-            flightPriceRepository.deleteByOriginAndDestinationAndDepartureDate(origin, destination, date);
+        List<SearchKey> keys = new ArrayList<SearchKey>(coverageByKey.keySet());
+        Collections.sort(keys, new Comparator<SearchKey>() {
+            @Override
+            public int compare(SearchKey left, SearchKey right) {
+                int tripTypeOrder = left.tripType.compareTo(right.tripType);
+                if (tripTypeOrder != 0) {
+                    return tripTypeOrder;
+                }
+                int routeOrder = left.origin.compareTo(right.origin);
+                if (routeOrder != 0) {
+                    return routeOrder;
+                }
+                routeOrder = left.destination.compareTo(right.destination);
+                if (routeOrder != 0) {
+                    return routeOrder;
+                }
+                int departureOrder = left.departureDate.compareTo(right.departureDate);
+                if (departureOrder != 0) {
+                    return departureOrder;
+                }
+                if (left.returnDate == null && right.returnDate == null) {
+                    return 0;
+                }
+                if (left.returnDate == null) {
+                    return -1;
+                }
+                if (right.returnDate == null) {
+                    return 1;
+                }
+                return left.returnDate.compareTo(right.returnDate);
+            }
+        });
+
+        Map<String, List<String>> summariesByRoute = new HashMap<String, List<String>>();
+        for (SearchKey key : keys) {
+            List<FlightPrice> flights = sanitizeFlights(
+                    coverageByKey.get(key),
+                    "persistence",
+                    sharedFlightCacheService.buildKey(key.tripType, key.origin, key.destination, key.departureDate, key.returnDate));
+            deleteCoverage(key);
             if (flights.isEmpty()) {
-                sharedFlightCacheService.evict(origin, destination, date);
+                sharedFlightCacheService.evict(key.tripType, key.origin, key.destination, key.departureDate, key.returnDate);
                 continue;
             }
             flightPriceRepository.saveAll(flights);
-            sharedFlightCacheService.put(origin, destination, date, flights);
-            summaries.add(date + "=" + flights.size());
+            sharedFlightCacheService.put(key.tripType, key.origin, key.destination, key.departureDate, key.returnDate, flights);
+
+            String summaryKey = key.tripType + "|" + normalizeRouteKey(key.origin, key.destination);
+            List<String> routeSummary = summariesByRoute.get(summaryKey);
+            if (routeSummary == null) {
+                routeSummary = new ArrayList<String>();
+                summariesByRoute.put(summaryKey, routeSummary);
+            }
+            routeSummary.add(key.returnDate == null
+                    ? key.departureDate + "=" + flights.size()
+                    : key.departureDate + "->" + key.returnDate + "=" + flights.size());
         }
-        log.info("PREFETCH_UPDATE route={} summary={}",
-                normalizeRouteKey(origin, destination),
-                summaries);
+
+        for (Map.Entry<String, List<String>> entry : summariesByRoute.entrySet()) {
+            log.info("PREFETCH_UPDATE route={} summary={}", entry.getKey(), entry.getValue());
+        }
     }
 
-    private void addCoverage(Map<LocalDate, List<FlightPrice>> coverageByDate, LocalDate date, FlightPrice flightPrice) {
-        List<FlightPrice> flights = coverageByDate.get(date);
+    private void addCoverage(Map<SearchKey, List<FlightPrice>> coverageByKey, SearchKey key, FlightPrice flightPrice) {
+        List<FlightPrice> flights = coverageByKey.get(key);
         if (flights == null) {
             flights = new ArrayList<FlightPrice>();
-            coverageByDate.put(date, flights);
+            coverageByKey.put(key, flights);
         }
         flights.add(flightPrice);
     }
 
-    private List<FlightPrice> createBucketVariants(FlightPrice source, LocalDate departureDate, boolean approximate, LocalDate sourceDepartureDate) {
+    private List<FlightPrice> createBucketVariants(FlightPrice source,
+                                                   TripType tripType,
+                                                   LocalDate departureDate,
+                                                   LocalDate returnDate,
+                                                   boolean approximate,
+                                                   LocalDate sourceDepartureDate) {
         List<FlightPrice> variants = new ArrayList<FlightPrice>();
         for (String timeBucket : TIME_BUCKETS) {
             FlightPrice variant = new FlightPrice();
+            variant.setTripType(tripType);
             variant.setOrigin(source.getOrigin());
             variant.setDestination(source.getDestination());
             variant.setDepartureDate(departureDate);
-            variant.setReturnDate(source.getReturnDate());
+            variant.setReturnDate(returnDate);
+            variant.setTotalPrice(source.getTotalPrice());
             variant.setPrice(source.getPrice());
             variant.setCurrency(source.getCurrency());
             variant.setProvider(source.getProvider());
             variant.setAirline(source.getAirline());
+            variant.setOutboundAirline(source.getOutboundAirline());
+            variant.setInboundAirline(source.getInboundAirline());
             variant.setPassengers(source.getPassengers());
             variant.setApproximate(Boolean.valueOf(approximate));
             variant.setSourceDepartureDate(sourceDepartureDate);
@@ -471,6 +645,10 @@ public class FlightPrefetchService {
             variant.setPrefetchedAt(LocalDateTime.now());
             variant.setDepartureTime(buildBucketTime(departureDate, timeBucket));
             variant.setArrivalTime(buildBucketTime(departureDate, timeBucket).plusHours(2));
+            if (tripType.isRoundTrip() && returnDate != null) {
+                variant.setReturnDepartureTime(buildBucketTime(returnDate, timeBucket));
+                variant.setReturnArrivalTime(buildBucketTime(returnDate, timeBucket).plusHours(2));
+            }
             variants.add(variant);
         }
         return variants;
@@ -486,72 +664,113 @@ public class FlightPrefetchService {
         return departureDate.atTime(19, 0);
     }
 
-    private List<FlightPrice> findNearestAvailable(String origin, String destination, LocalDate departureDate) {
+    private List<FlightPrice> findNearestAvailable(TripType tripType,
+                                                   String origin,
+                                                   String destination,
+                                                   LocalDate departureDate,
+                                                   LocalDate returnDate) {
         for (int distance = 1; distance <= 2; distance++) {
-            List<FlightPrice> previous = sharedFlightCacheService.getStale(origin, destination, departureDate.minusDays(distance));
+            LocalDate previousDeparture = departureDate.minusDays(distance);
+            LocalDate nextDeparture = departureDate.plusDays(distance);
+            LocalDate previousReturn = returnDate == null ? null : returnDate.minusDays(distance);
+            LocalDate nextReturn = returnDate == null ? null : returnDate.plusDays(distance);
+
+            List<FlightPrice> previous = sharedFlightCacheService.getStale(tripType, origin, destination, previousDeparture, previousReturn);
             if (!previous.isEmpty()) {
                 return previous;
             }
-            List<FlightPrice> next = sharedFlightCacheService.getStale(origin, destination, departureDate.plusDays(distance));
+            List<FlightPrice> next = sharedFlightCacheService.getStale(tripType, origin, destination, nextDeparture, nextReturn);
             if (!next.isEmpty()) {
                 return next;
             }
         }
 
-        List<FlightPrice> nearestFromDb = findNearestFromDb(origin, destination, departureDate);
+        List<FlightPrice> nearestFromDb = findNearestFromDb(tripType, origin, destination, departureDate, returnDate);
         if (!nearestFromDb.isEmpty()) {
             FlightPrice first = nearestFromDb.get(0);
-            log.info("DB_FALLBACK_HIT key={} source=nearest sourceDate={}",
-                    sharedFlightCacheService.buildKey(origin, destination, departureDate),
-                    first.getDepartureDate());
-            sharedFlightCacheService.put(origin, destination, first.getDepartureDate(), nearestFromDb);
+            TripType candidateTripType = resolveTripType(first.getTripType(), first.getReturnDate());
+            log.info("DB_FALLBACK_HIT key={} source=nearest sourceDate={} sourceReturnDate={}",
+                    sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate),
+                    first.getDepartureDate(),
+                    first.getReturnDate());
+            sharedFlightCacheService.put(candidateTripType,
+                    origin,
+                    destination,
+                    first.getDepartureDate(),
+                    first.getReturnDate(),
+                    nearestFromDb);
             log.info("CACHE_POPULATED_FROM_DB key={}",
-                    sharedFlightCacheService.buildKey(origin, destination, first.getDepartureDate()));
+                    sharedFlightCacheService.buildKey(candidateTripType, origin, destination, first.getDepartureDate(), first.getReturnDate()));
             return nearestFromDb;
         }
         return Collections.emptyList();
     }
 
-    private List<FlightPrice> findExactFromDb(String origin, String destination, LocalDate departureDate) {
+    private List<FlightPrice> findExactFromDb(TripType tripType,
+                                              String origin,
+                                              String destination,
+                                              LocalDate departureDate,
+                                              LocalDate returnDate) {
         return sanitizeFlights(
-                flightPriceRepository.findByOriginAndDestinationAndDepartureDateOrderByPriceAsc(
-                origin,
-                destination,
-                departureDate),
+                returnDate == null
+                        ? flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNullOrderByPriceAsc(
+                                tripType, origin, destination, departureDate)
+                        : flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateOrderByPriceAsc(
+                                tripType, origin, destination, departureDate, returnDate),
                 "db-exact",
-                sharedFlightCacheService.buildKey(origin, destination, departureDate));
+                sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
     }
 
-    private List<FlightPrice> findNearestFromDb(String origin, String destination, LocalDate departureDate) {
+    private List<FlightPrice> findNearestFromDb(TripType tripType,
+                                                String origin,
+                                                String destination,
+                                                LocalDate departureDate,
+                                                LocalDate returnDate) {
+        LocalDate returnDateFrom = returnDate == null ? null : returnDate.minusDays(2);
+        LocalDate returnDateTo = returnDate == null ? null : returnDate.plusDays(2);
         List<FlightPrice> candidates = sanitizeFlights(
-                flightPriceRepository.findByOriginAndDestinationAndDepartureDateBetweenOrderByDepartureDateAscPriceAsc(
-                origin,
-                destination,
-                departureDate.minusDays(2),
-                departureDate.plusDays(2)),
+                returnDate == null
+                        ? flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateIsNullOrderByDepartureDateAscPriceAsc(
+                                tripType,
+                                origin,
+                                destination,
+                                departureDate.minusDays(2),
+                                departureDate.plusDays(2))
+                        : flightPriceRepository.findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateBetweenOrderByDepartureDateAscPriceAsc(
+                                tripType,
+                                origin,
+                                destination,
+                                departureDate.minusDays(2),
+                                departureDate.plusDays(2),
+                                returnDateFrom,
+                                returnDateTo),
                 "db-nearest",
-                sharedFlightCacheService.buildKey(origin, destination, departureDate));
+                sharedFlightCacheService.buildKey(tripType, origin, destination, departureDate, returnDate));
         if (candidates.isEmpty()) {
             return Collections.emptyList();
         }
 
-        LocalDate nearestDate = null;
+        FlightPrice nearestFlight = null;
         long nearestDistance = Long.MAX_VALUE;
         for (FlightPrice candidate : candidates) {
-            long distance = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(departureDate, candidate.getDepartureDate()));
+            long distance = Math.abs(ChronoUnit.DAYS.between(departureDate, candidate.getDepartureDate()));
+            if (returnDate != null && candidate.getReturnDate() != null) {
+                distance += Math.abs(ChronoUnit.DAYS.between(returnDate, candidate.getReturnDate()));
+            }
             if (distance < nearestDistance) {
                 nearestDistance = distance;
-                nearestDate = candidate.getDepartureDate();
+                nearestFlight = candidate;
             }
         }
 
-        if (nearestDate == null) {
+        if (nearestFlight == null) {
             return Collections.emptyList();
         }
 
         List<FlightPrice> nearestFlights = new ArrayList<FlightPrice>();
         for (FlightPrice candidate : candidates) {
-            if (nearestDate.equals(candidate.getDepartureDate())) {
+            if (candidate.getDepartureDate().equals(nearestFlight.getDepartureDate())
+                    && Objects.equals(candidate.getReturnDate(), nearestFlight.getReturnDate())) {
                 nearestFlights.add(candidate);
             }
         }
@@ -583,17 +802,56 @@ public class FlightPrefetchService {
     }
 
     private boolean isValidAirline(FlightPrice flight) {
-        return flight != null
-                && StringUtils.hasText(flight.getAirline())
-                && !INVALID_DUFFEL_AIRLINE.equalsIgnoreCase(flight.getAirline().trim());
+        if (flight == null) {
+            return false;
+        }
+        String airline = flight.getAirline();
+        if (!StringUtils.hasText(airline)) {
+            airline = flight.getOutboundAirline();
+        }
+        return StringUtils.hasText(airline)
+                && !INVALID_DUFFEL_AIRLINE.equalsIgnoreCase(airline.trim());
     }
 
     private void logApproximateUsageIfNeeded(List<FlightPrice> flights) {
         if (!flights.isEmpty() && Boolean.TRUE.equals(flights.get(0).getApproximate())) {
-            log.info("APPROX_DATA_USED key={} sourceDate={}",
-                    normalizeRouteKey(flights.get(0).getOrigin(), flights.get(0).getDestination()) + "|" + flights.get(0).getDepartureDate(),
-                    flights.get(0).getSourceDepartureDate());
+            FlightPrice first = flights.get(0);
+            log.info("APPROX_DATA_USED key={} sourceDate={} sourceReturnDate={}",
+                    sharedFlightCacheService.buildKey(
+                            resolveTripType(first.getTripType(), first.getReturnDate()),
+                            first.getOrigin(),
+                            first.getDestination(),
+                            first.getDepartureDate(),
+                            first.getReturnDate()),
+                    first.getSourceDepartureDate(),
+                    first.getReturnDate() == null || first.getDepartureDate() == null || first.getSourceDepartureDate() == null
+                            ? null
+                            : first.getReturnDate().minusDays(ChronoUnit.DAYS.between(first.getSourceDepartureDate(), first.getDepartureDate())));
         }
+    }
+
+    private TripType resolveTripType(TripType tripType, LocalDate returnDate) {
+        if (tripType != null) {
+            return tripType;
+        }
+        return returnDate == null ? TripType.ONE_WAY : TripType.ROUND_TRIP;
+    }
+
+    private void deleteCoverage(SearchKey key) {
+        if (key.returnDate == null) {
+            flightPriceRepository.deleteByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNull(
+                    key.tripType,
+                    key.origin,
+                    key.destination,
+                    key.departureDate);
+            return;
+        }
+        flightPriceRepository.deleteByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDate(
+                key.tripType,
+                key.origin,
+                key.destination,
+                key.departureDate,
+                key.returnDate);
     }
 
     private static final class RouteDefinition {
@@ -620,6 +878,43 @@ public class FlightPrefetchService {
         @Override
         public String toString() {
             return origin + "->" + destination;
+        }
+    }
+
+    private static final class SearchKey {
+        private final TripType tripType;
+        private final String origin;
+        private final String destination;
+        private final LocalDate departureDate;
+        private final LocalDate returnDate;
+
+        private SearchKey(TripType tripType, String origin, String destination, LocalDate departureDate, LocalDate returnDate) {
+            this.tripType = tripType;
+            this.origin = origin;
+            this.destination = destination;
+            this.departureDate = departureDate;
+            this.returnDate = returnDate;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof SearchKey)) {
+                return false;
+            }
+            SearchKey that = (SearchKey) other;
+            return tripType == that.tripType
+                    && Objects.equals(origin, that.origin)
+                    && Objects.equals(destination, that.destination)
+                    && Objects.equals(departureDate, that.departureDate)
+                    && Objects.equals(returnDate, that.returnDate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(tripType, origin, destination, departureDate, returnDate);
         }
     }
 }

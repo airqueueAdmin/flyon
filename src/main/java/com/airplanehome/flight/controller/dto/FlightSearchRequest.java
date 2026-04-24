@@ -1,10 +1,13 @@
 package com.airplanehome.flight.controller.dto;
 
+import com.airplanehome.flight.model.TripType;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.time.LocalDate;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
 public class FlightSearchRequest {
+    private TripType tripType;
     @NotBlank
     private String origin;
     @NotBlank
@@ -12,7 +15,17 @@ public class FlightSearchRequest {
     @NotNull
     private LocalDate departureDate;
     private LocalDate returnDate;
+    private Integer adults;
+    @JsonAlias("adults")
     private Integer passengers;
+
+    public TripType getTripType() {
+        return tripType;
+    }
+
+    public void setTripType(TripType tripType) {
+        this.tripType = tripType;
+    }
 
     public String getOrigin() {
         return origin;
@@ -46,8 +59,19 @@ public class FlightSearchRequest {
         this.returnDate = returnDate;
     }
 
-    public Integer getPassengers() {
+    public Integer getAdults() {
+        if (adults != null) {
+            return adults;
+        }
         return passengers;
+    }
+
+    public void setAdults(Integer adults) {
+        this.adults = adults;
+    }
+
+    public Integer getPassengers() {
+        return getAdults();
     }
 
     public void setPassengers(Integer passengers) {

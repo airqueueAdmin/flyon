@@ -35,6 +35,7 @@ app:
     interval-ms: 600000
     coverage-days-ahead: 7
     actual-fetch-offsets: 0,3
+    round-trip-durations: 2,3,5,7
     routes-per-cycle: 5
     always-hot-routes: 2
     routes: ICN|NRT,ICN|FUK,ICN|KIX,ICN|TYO,ICN|CTS,ICN|OKA,ICN|BKK,ICN|HKG,ICN|TPE,ICN|SIN,ICN|DAD,ICN|SGN,ICN|MNL,ICN|CEB,ICN|SFO,ICN|LAX,ICN|JFK,ICN|SEA,ICN|YVR,ICN|GUM,ICN|SYD,ICN|MEL,ICN|CDG,ICN|LHR
@@ -55,6 +56,7 @@ rapidapi:
   host: ${RAPIDAPI_HOST:flights-sky.p.rapidapi.com}
   auto-complete-url: ${RAPIDAPI_AUTOCOMPLETE_URL:https://flights-sky.p.rapidapi.com/web/flights/auto-complete}
   base-url: ${RAPIDAPI_BASE_URL:https://flights-sky.p.rapidapi.com/web/flights/search-one-way}
+  round-trip-base-url: ${RAPIDAPI_ROUND_TRIP_BASE_URL:}
   market: ${RAPIDAPI_MARKET:US}
   locale: ${RAPIDAPI_LOCALE:en-US}
   currency: ${RAPIDAPI_CURRENCY:USD}

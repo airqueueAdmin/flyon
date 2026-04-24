@@ -1,9 +1,11 @@
 package com.airplanehome.flight.service;
 
+import com.airplanehome.flight.controller.dto.FlightSearchRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.PriceHistory;
 import com.airplanehome.flight.model.Tracking;
+import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.repository.PriceHistoryRepository;
 import com.airplanehome.flight.repository.TrackingRepository;
 import com.airplanehome.flight.time.TimeSupport;
@@ -12,18 +14,18 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import javax.persistence.EntityNotFoundException;
-import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class FlightService {
     private static final Logger log = LoggerFactory.getLogger(FlightService.class);
+    private static final int SUPPORTED_SEARCH_WINDOW_DAYS = 7;
 
     private final TrackingRepository trackingRepository;
     private final PriceHistoryRepository priceHistoryRepository;
@@ -40,18 +42,55 @@ public class FlightService {
         this.flightPrefetchService = flightPrefetchService;
     }
 
-    public List<FlightPrice> searchLowestPrice(String origin, String destination, LocalDate departureDate,
-                                               LocalDate returnDate, Integer passengers) {
+    public List<FlightPrice> searchLowestPrice(FlightSearchRequest request) {
+        TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
+        LocalDate returnDate = normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate());
+        int adults = normalizeAdults(request.getAdults());
+        return searchLowestPrice(
+                tripType,
+                request.getOrigin(),
+                request.getDestination(),
+                request.getDepartureDate(),
+                returnDate,
+                Integer.valueOf(adults));
+    }
+
+    public List<FlightPrice> searchLowestPrice(String origin,
+                                               String destination,
+                                               LocalDate departureDate,
+                                               LocalDate returnDate,
+                                               Integer adults) {
+        return searchLowestPrice(normalizeTripType(null, returnDate), origin, destination, departureDate, returnDate, adults);
+    }
+
+    public List<FlightPrice> searchLowestPrice(TripType tripType,
+                                               String origin,
+                                               String destination,
+                                               LocalDate departureDate,
+                                               LocalDate returnDate,
+                                               Integer adults) {
+        validateSearch(tripType, origin, destination, departureDate, returnDate);
         String normalizedOrigin = origin.trim().toUpperCase();
         String normalizedDestination = destination.trim().toUpperCase();
-        if (!flightPrefetchService.isSupported(normalizedOrigin, normalizedDestination, departureDate)) {
-            throw new IllegalArgumentException("This route is not yet supported.");
+        TripType resolvedTripType = normalizeTripType(tripType, returnDate);
+        Integer normalizedAdults = Integer.valueOf(normalizeAdults(adults));
+
+        if (!flightPrefetchService.isSupported(resolvedTripType, normalizedOrigin, normalizedDestination, departureDate, returnDate)) {
+            LocalDate todayKst = TimeSupport.nowKst().toLocalDate();
+            LocalDate maxSupportedDate = todayKst.plusDays(SUPPORTED_SEARCH_WINDOW_DAYS - 1L);
+            throw new IllegalArgumentException(String.format(
+                    "This route is supported only for dates from %s to %s (KST).",
+                    todayKst,
+                    maxSupportedDate));
         }
 
         List<FlightPrice> results = flightPrefetchService.getCachedOrFetchFlights(
+                resolvedTripType,
                 normalizedOrigin,
                 normalizedDestination,
-                departureDate);
+                departureDate,
+                returnDate,
+                normalizedAdults);
         if (results.isEmpty()) {
             throw new IllegalStateException("Flight data is being prepared. Please try again in a few minutes.");
         }
@@ -64,12 +103,15 @@ public class FlightService {
         validateTrackingRequest(request);
 
         Tracking tracking = new Tracking();
+        TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
+        LocalDate returnDate = normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate());
+        tracking.setTripType(tripType);
         tracking.setEmail(request.getEmail());
         tracking.setOrigin(request.getOrigin().trim().toUpperCase());
         tracking.setDestination(request.getDestination().trim().toUpperCase());
         tracking.setDepartureDate(request.getDepartureDate());
-        tracking.setReturnDate(request.getReturnDate());
-        tracking.setPassengers(request.getPassengers());
+        tracking.setReturnDate(returnDate);
+        tracking.setPassengers(Integer.valueOf(normalizeAdults(request.getAdults())));
         tracking.setTargetPrice(request.getTargetPrice());
         tracking.setKakaoNotificationEnabled(Boolean.TRUE.equals(request.getKakaoNotificationEnabled()));
         tracking.setPhoneNumber(normalizePhoneNumber(request.getPhoneNumber()));
@@ -77,6 +119,7 @@ public class FlightService {
         tracking.setLastUpdatedAt(TimeSupport.nowKst());
 
         List<FlightPrice> currentPrices = searchLowestPrice(
+                tracking.getTripType(),
                 tracking.getOrigin(),
                 tracking.getDestination(),
                 tracking.getDepartureDate(),
@@ -112,9 +155,10 @@ public class FlightService {
 
     public List<PriceDropNotification> checkTrackedPrices() {
         List<Tracking> trackings = trackingRepository.findAll();
-        List<PriceDropNotification> notifications = new ArrayList<>();
+        List<PriceDropNotification> notifications = new ArrayList<PriceDropNotification>();
         for (Tracking tracking : trackings) {
             List<FlightPrice> currentPrices = searchLowestPrice(
+                    normalizeTripType(tracking.getTripType(), tracking.getReturnDate()),
                     tracking.getOrigin(),
                     tracking.getDestination(),
                     tracking.getDepartureDate(),
@@ -203,6 +247,7 @@ public class FlightService {
                         result.getPrice().stripTrailingZeros().toPlainString(),
                         convertedPrice.toPlainString());
                 result.setPrice(convertedPrice);
+                result.setTotalPrice(convertedPrice);
                 result.setCurrency("KRW");
                 continue;
             }
@@ -212,16 +257,60 @@ public class FlightService {
                         result.getPrice().stripTrailingZeros().toPlainString(),
                         result.getPrice().stripTrailingZeros().toPlainString());
                 result.setCurrency("KRW");
+                result.setTotalPrice(result.getPrice());
             }
         }
     }
 
     private void validateTrackingRequest(TrackingRequest request) {
+        TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
+        validateSearch(tripType, request.getOrigin(), request.getDestination(), request.getDepartureDate(), request.getReturnDate());
         boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
         boolean kakaoOptIn = Boolean.TRUE.equals(resolveKakaoOptIn(request));
         if (kakaoEnabled && kakaoOptIn && !StringUtils.hasText(request.getPhoneNumber())) {
             throw new IllegalArgumentException("phoneNumber is required when Kakao AlimTalk is enabled.");
         }
+    }
+
+    private void validateSearch(TripType tripType,
+                                String origin,
+                                String destination,
+                                LocalDate departureDate,
+                                LocalDate returnDate) {
+        if (!StringUtils.hasText(origin) || !StringUtils.hasText(destination) || departureDate == null) {
+            throw new IllegalArgumentException("origin, destination, and departureDate are required.");
+        }
+        normalizeReturnDate(normalizeTripType(tripType, returnDate), departureDate, returnDate);
+    }
+
+    private TripType normalizeTripType(TripType tripType, LocalDate returnDate) {
+        if (tripType != null) {
+            return tripType;
+        }
+        return returnDate == null ? TripType.ONE_WAY : TripType.ROUND_TRIP;
+    }
+
+    private LocalDate normalizeReturnDate(TripType tripType, LocalDate departureDate, LocalDate returnDate) {
+        if (!tripType.isRoundTrip()) {
+            return null;
+        }
+        if (returnDate == null) {
+            throw new IllegalArgumentException("returnDate is required for ROUND_TRIP.");
+        }
+        if (departureDate != null && returnDate.isBefore(departureDate)) {
+            throw new IllegalArgumentException("returnDate must be on or after departureDate.");
+        }
+        return returnDate;
+    }
+
+    private int normalizeAdults(Integer adults) {
+        if (adults == null) {
+            return 1;
+        }
+        if (adults.intValue() < 1) {
+            throw new IllegalArgumentException("adults must be at least 1.");
+        }
+        return adults.intValue();
     }
 
     private Boolean resolveKakaoOptIn(TrackingRequest request) {

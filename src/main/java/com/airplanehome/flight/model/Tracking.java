@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -16,6 +18,8 @@ public class Tracking {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String email;
+    @Enumerated(EnumType.STRING)
+    private TripType tripType;
     private String origin;
     private String destination;
     private LocalDate departureDate;
@@ -45,6 +49,14 @@ public class Tracking {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public TripType getTripType() {
+        return tripType;
+    }
+
+    public void setTripType(TripType tripType) {
+        this.tripType = tripType;
     }
 
     public String getOrigin() {

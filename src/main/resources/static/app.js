@@ -17,6 +17,23 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatTripType(value) {
+  return value === "ROUND_TRIP" ? "왕복" : "편도";
+}
+
+function formatTimeBucket(value) {
+  if (value === "morning") {
+    return "오전";
+  }
+  if (value === "afternoon") {
+    return "오후";
+  }
+  if (value === "evening") {
+    return "저녁";
+  }
+  return value || "일반";
+}
+
 function renderApproximateBadge(flight) {
   if (!flight || !flight.approximate) {
     return "";
@@ -47,6 +64,89 @@ async function requestJson(url, options) {
 
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+const AIRPORT_OPTIONS = {
+  origin: [
+    { code: "ICN", label: "인천국제공항 (ICN)" }
+  ],
+  destination: [
+    { code: "NRT", label: "도쿄 나리타 (NRT)" },
+    { code: "FUK", label: "후쿠오카 (FUK)" },
+    { code: "KIX", label: "오사카 간사이 (KIX)" },
+    { code: "TYO", label: "도쿄 지역 (TYO)" },
+    { code: "CTS", label: "삿포로 치토세 (CTS)" },
+    { code: "OKA", label: "오키나와 나하 (OKA)" },
+    { code: "BKK", label: "방콕 (BKK)" },
+    { code: "HKG", label: "홍콩 (HKG)" },
+    { code: "TPE", label: "타이베이 (TPE)" },
+    { code: "SIN", label: "싱가포르 (SIN)" },
+    { code: "DAD", label: "다낭 (DAD)" },
+    { code: "SGN", label: "호치민 (SGN)" },
+    { code: "MNL", label: "마닐라 (MNL)" },
+    { code: "CEB", label: "세부 (CEB)" },
+    { code: "SFO", label: "샌프란시스코 (SFO)" },
+    { code: "LAX", label: "로스앤젤레스 (LAX)" },
+    { code: "JFK", label: "뉴욕 JFK (JFK)" },
+    { code: "SEA", label: "시애틀 (SEA)" },
+    { code: "YVR", label: "밴쿠버 (YVR)" },
+    { code: "GUM", label: "괌 (GUM)" },
+    { code: "SYD", label: "시드니 (SYD)" },
+    { code: "MEL", label: "멜버른 (MEL)" },
+    { code: "CDG", label: "파리 샤를드골 (CDG)" },
+    { code: "LHR", label: "런던 히드로 (LHR)" }
+  ]
+};
+
+const SEARCH_WINDOW_DAYS = 7;
+
+function populateSelect(selector, options, placeholder) {
+  const select = qs(selector);
+  if (!select) {
+    return;
+  }
+
+  select.innerHTML = "";
+
+  if (placeholder) {
+    const placeholderOption = document.createElement("option");
+    placeholderOption.value = "";
+    placeholderOption.textContent = placeholder;
+    placeholderOption.disabled = true;
+    select.appendChild(placeholderOption);
+  }
+
+  options.forEach((option, index) => {
+    const element = document.createElement("option");
+    element.value = option.code;
+    element.textContent = option.label;
+    if (index === 0) {
+      element.selected = true;
+    }
+    select.appendChild(element);
+  });
+}
+
+function populateSelectableFilter(selector, options, allLabel) {
+  const select = qs(selector);
+  if (!select) {
+    return;
+  }
+
+  select.innerHTML = "";
+
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = allLabel;
+  allOption.selected = true;
+  select.appendChild(allOption);
+
+  options.forEach((option) => {
+    const element = document.createElement("option");
+    element.value = option.code;
+    element.textContent = option.label;
+    select.appendChild(element);
+  });
 }
 
 function renderNotificationExample(target, payload) {
@@ -89,10 +189,31 @@ function initSearchPage() {
   const modalStatus = qs("#track-status");
   const selectedRoute = qs("#selected-route");
   const trackingLink = qs("#tracking-link");
+  const departureDateInput = qs("#departure-date");
+  const returnDateInput = qs("#return-date");
+  const returnDateField = qs("#return-date-field");
+  const searchWindowNote = qs("#search-window-note");
+  const tripTypeInputs = document.querySelectorAll('input[name="trip-type"]');
   let selectedFlight = null;
   let searchState = null;
 
+  populateSelect("#origin", AIRPORT_OPTIONS.origin);
+  populateSelect("#destination", AIRPORT_OPTIONS.destination);
+  applySearchDateWindow();
+  syncTripTypeFields();
+  syncReturnDateConstraint();
   loadNotificationExample("#kakao-example");
+
+  tripTypeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      syncTripTypeFields();
+      syncReturnDateConstraint();
+    });
+  });
+
+  departureDateInput.addEventListener("change", () => {
+    syncReturnDateConstraint();
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -101,10 +222,20 @@ function initSearchPage() {
     results.innerHTML = "";
     resultCount.textContent = "";
 
+    const tripType = getSelectedTripType();
+    if (tripType === "ROUND_TRIP" && !returnDateInput.value) {
+      status.textContent = "왕복 검색은 도착일을 선택해야 합니다.";
+      status.className = "status error";
+      return;
+    }
+
     const payload = {
-      origin: qs("#origin").value.trim(),
-      destination: qs("#destination").value.trim(),
-      departureDate: qs("#departure-date").value
+      tripType,
+      origin: qs("#origin").value,
+      destination: qs("#destination").value,
+      departureDate: departureDateInput.value,
+      returnDate: tripType === "ROUND_TRIP" ? returnDateInput.value : null,
+      adults: Number(qs("#adults").value || 1)
     };
 
     searchState = payload;
@@ -159,9 +290,12 @@ function initSearchPage() {
     const rawTargetPrice = qs("#target-price").value.trim();
     const kakaoEnabled = qs("#kakao-enabled").checked;
     const payload = {
+      tripType: searchState.tripType,
       origin: searchState.origin,
       destination: searchState.destination,
       departureDate: searchState.departureDate,
+      returnDate: searchState.returnDate,
+      adults: searchState.adults,
       targetPrice: rawTargetPrice ? Number(rawTargetPrice) : null,
       kakaoNotificationEnabled: kakaoEnabled,
       kakaoOptIn: kakaoEnabled && qs("#kakao-opt-in").checked,
@@ -185,6 +319,61 @@ function initSearchPage() {
       modalStatus.className = "status error";
     }
   });
+
+  function getSelectedTripType() {
+    const selected = document.querySelector('input[name="trip-type"]:checked');
+    return selected ? selected.value : "ONE_WAY";
+  }
+
+  function syncTripTypeFields() {
+    const isRoundTrip = getSelectedTripType() === "ROUND_TRIP";
+    returnDateField.hidden = !isRoundTrip;
+    returnDateInput.required = isRoundTrip;
+    if (!isRoundTrip) {
+      returnDateInput.value = "";
+    }
+  }
+
+  function syncReturnDateConstraint() {
+    if (!departureDateInput.value) {
+      returnDateInput.min = "";
+      returnDateInput.max = "";
+      return;
+    }
+    returnDateInput.min = departureDateInput.value;
+    returnDateInput.max = departureDateInput.max;
+    if (returnDateInput.value && returnDateInput.value < departureDateInput.value) {
+      returnDateInput.value = departureDateInput.value;
+    }
+  }
+
+  function applySearchDateWindow() {
+    const today = new Date();
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + SEARCH_WINDOW_DAYS - 1);
+
+    const minValue = toDateInputValue(today);
+    const maxValue = toDateInputValue(maxDate);
+    departureDateInput.min = minValue;
+    departureDateInput.max = maxValue;
+    returnDateInput.min = minValue;
+    returnDateInput.max = maxValue;
+
+    if (!departureDateInput.value || departureDateInput.value < minValue || departureDateInput.value > maxValue) {
+      departureDateInput.value = minValue;
+    }
+
+    if (searchWindowNote) {
+      searchWindowNote.textContent = `검색 가능 기간: ${minValue} ~ ${maxValue}`;
+    }
+  }
+}
+
+function toDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function renderResults(target, flights, onTrack) {
@@ -197,7 +386,9 @@ function renderResults(target, flights, onTrack) {
       <div class="result-head">
         <div class="meta">
           <div class="route">${flight.origin} -> ${flight.destination} ${renderApproximateBadge(flight)}</div>
+          <div>여정: ${formatTripType(flight.tripType)}</div>
           <div>항공사: ${flight.airline || "확인 불가"}</div>
+          ${flight.tripType === "ROUND_TRIP" ? `<div>귀국 항공사: ${flight.inboundAirline || "확인 불가"}</div>` : ""}
         </div>
         <div class="price">${formatMoney(flight.price)}</div>
       </div>
@@ -212,8 +403,17 @@ function renderResults(target, flights, onTrack) {
         </div>
         <div class="meta-line">
           <span>시간대</span>
-          <span>${flight.timeBucket || "일반"}</span>
+          <span>${formatTimeBucket(flight.timeBucket)}</span>
         </div>
+        ${flight.tripType === "ROUND_TRIP" ? `
+        <div class="meta-line">
+          <span>귀국 출발</span>
+          <span>${formatDateTime(flight.returnDepartureTime)}</span>
+        </div>
+        <div class="meta-line">
+          <span>귀국 도착</span>
+          <span>${formatDateTime(flight.returnArrivalTime)}</span>
+        </div>` : ""}
       </div>
     `;
 
@@ -236,11 +436,19 @@ function initTrackingPage() {
   const list = qs("#tracking-list");
   const status = qs("#tracking-status");
   const focusTitle = qs("#tracking-focus");
+  const originFilter = qs("#tracking-origin-filter");
+  const destinationFilter = qs("#tracking-destination-filter");
   const params = new URLSearchParams(window.location.search);
   const focusId = params.get("id");
+  let allTrackings = [];
 
+  populateSelectableFilter("#tracking-origin-filter", AIRPORT_OPTIONS.origin, "전체 출발지");
+  populateSelectableFilter("#tracking-destination-filter", AIRPORT_OPTIONS.destination, "전체 도착지");
   loadNotificationExample("#kakao-example");
   loadTrackings();
+
+  originFilter.addEventListener("change", () => renderFilteredTrackings());
+  destinationFilter.addEventListener("change", () => renderFilteredTrackings());
 
   async function loadTrackings() {
     status.textContent = "추적 목록을 불러오는 중입니다...";
@@ -248,6 +456,7 @@ function initTrackingPage() {
 
     try {
       const trackings = await requestJson("/api/trackings");
+      allTrackings = trackings;
       status.textContent = "";
 
       if (!trackings.length) {
@@ -262,14 +471,36 @@ function initTrackingPage() {
           : "알림에서 돌아왔습니다";
       }
 
-      renderTrackings(list, trackings, async (id) => {
-        await requestJson(`/api/trackings/${id}`, { method: "DELETE" });
-        await loadTrackings();
-      });
+      renderFilteredTrackings();
     } catch (error) {
       status.textContent = error.message;
       status.className = "status error";
     }
+  }
+
+  function renderFilteredTrackings() {
+    if (!allTrackings.length) {
+      list.innerHTML = `<div class="empty-state"><h3>아직 추적 중인 노선이 없습니다</h3><p class="muted">노선을 검색한 뒤 가격 추적을 누르고 카카오 알림을 설정해 보세요.</p></div>`;
+      return;
+    }
+
+    const origin = originFilter.value;
+    const destination = destinationFilter.value;
+    const filteredTrackings = allTrackings.filter((tracking) => {
+      const matchesOrigin = !origin || tracking.origin === origin;
+      const matchesDestination = !destination || tracking.destination === destination;
+      return matchesOrigin && matchesDestination;
+    });
+
+    if (!filteredTrackings.length) {
+      list.innerHTML = `<div class="empty-state"><h3>조건에 맞는 추적이 없습니다</h3><p class="muted">필터를 바꾸거나 검색 화면에서 새 추적을 추가해 보세요.</p></div>`;
+      return;
+    }
+
+    renderTrackings(list, filteredTrackings, async (id) => {
+      await requestJson(`/api/trackings/${id}`, { method: "DELETE" });
+      await loadTrackings();
+    });
   }
 }
 
@@ -288,6 +519,18 @@ function renderTrackings(target, trackings, onRemove) {
         <div class="price">${formatMoney(tracking.lastCheckedPrice)}</div>
       </div>
       <div class="tracking-meta">
+        <div class="tracking-line">
+          <span>여정 유형</span>
+          <span>${formatTripType(tracking.tripType)}</span>
+        </div>
+        <div class="tracking-line">
+          <span>출발일</span>
+          <span>${tracking.departureDate || "미설정"}</span>
+        </div>
+        <div class="tracking-line">
+          <span>도착일</span>
+          <span>${tracking.returnDate || "해당 없음"}</span>
+        </div>
         <div class="tracking-line">
           <span>현재 가격</span>
           <span>${formatMoney(tracking.lastCheckedPrice)}</span>

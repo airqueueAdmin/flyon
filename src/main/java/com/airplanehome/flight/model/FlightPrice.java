@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -13,16 +15,23 @@ public class FlightPrice {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Enumerated(EnumType.STRING)
+    private TripType tripType;
     private String origin;
     private String destination;
     private LocalDate departureDate;
     private LocalDate returnDate;
+    private BigDecimal totalPrice;
     private BigDecimal price;
     private String currency;
     private String provider;
     private String airline;
+    private String outboundAirline;
+    private String inboundAirline;
     private LocalDateTime departureTime;
     private LocalDateTime arrivalTime;
+    private LocalDateTime returnDepartureTime;
+    private LocalDateTime returnArrivalTime;
     private Integer passengers;
     private Boolean approximate;
     private LocalDate sourceDepartureDate;
@@ -35,6 +44,14 @@ public class FlightPrice {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public TripType getTripType() {
+        return tripType;
+    }
+
+    public void setTripType(TripType tripType) {
+        this.tripType = tripType;
     }
 
     public String getOrigin() {
@@ -69,6 +86,14 @@ public class FlightPrice {
         this.returnDate = returnDate;
     }
 
+    public BigDecimal getTotalPrice() {
+        return totalPrice;
+    }
+
+    public void setTotalPrice(BigDecimal totalPrice) {
+        this.totalPrice = totalPrice;
+    }
+
     public BigDecimal getPrice() {
         return price;
     }
@@ -101,6 +126,22 @@ public class FlightPrice {
         this.airline = airline;
     }
 
+    public String getOutboundAirline() {
+        return outboundAirline;
+    }
+
+    public void setOutboundAirline(String outboundAirline) {
+        this.outboundAirline = outboundAirline;
+    }
+
+    public String getInboundAirline() {
+        return inboundAirline;
+    }
+
+    public void setInboundAirline(String inboundAirline) {
+        this.inboundAirline = inboundAirline;
+    }
+
     public LocalDateTime getDepartureTime() {
         return departureTime;
     }
@@ -115,6 +156,22 @@ public class FlightPrice {
 
     public void setArrivalTime(LocalDateTime arrivalTime) {
         this.arrivalTime = arrivalTime;
+    }
+
+    public LocalDateTime getReturnDepartureTime() {
+        return returnDepartureTime;
+    }
+
+    public void setReturnDepartureTime(LocalDateTime returnDepartureTime) {
+        this.returnDepartureTime = returnDepartureTime;
+    }
+
+    public LocalDateTime getReturnArrivalTime() {
+        return returnArrivalTime;
+    }
+
+    public void setReturnArrivalTime(LocalDateTime returnArrivalTime) {
+        this.returnArrivalTime = returnArrivalTime;
     }
 
     public Integer getPassengers() {
