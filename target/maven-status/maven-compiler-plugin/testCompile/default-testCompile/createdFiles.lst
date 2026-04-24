@@ -1,6 +1,0 @@
-com\airplanehome\flight\model\TrackingSerializationTest.class
-com\airplanehome\flight\scheduler\PriceTrackerSchedulerTest.class
-com\airplanehome\flight\service\FlightPrefetchServiceTest.class
-com\airplanehome\flight\client\RapidApiClientPriceParsingTest.class
-com\airplanehome\flight\FlightPlatformApplicationTest.class
-com\airplanehome\flight\service\ExchangeRateServiceTest.class

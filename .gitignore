@@ -1,2 +1,5 @@
 .env.local
-docker-compose.local.yml
+.idea/
+.claude/
+target/
+*.log

@@ -139,6 +139,8 @@ Implemented in:
 
 - [src/main/java/com/airplanehome/flight/service/SharedFlightCacheService.java](src/main/java/com/airplanehome/flight/service/SharedFlightCacheService.java)
 - [src/main/java/com/airplanehome/flight/service/FlightPrefetchService.java](src/main/java/com/airplanehome/flight/service/FlightPrefetchService.java)
+- [src/main/java/com/airplanehome/flight/controller/AdminCacheController.java](src/main/java/com/airplanehome/flight/controller/AdminCacheController.java)
+- [src/main/java/com/airplanehome/flight/controller/dto/AdminCacheRequest.java](src/main/java/com/airplanehome/flight/controller/dto/AdminCacheRequest.java)
 
 Added methods:
 
@@ -148,7 +150,24 @@ Added methods:
 - `FlightPrefetchService.clearCache()`
 - `FlightPrefetchService.refresh(...)` — force re-fetch from API and persist
 
-No controller/admin endpoint was added yet. The capability exists only in the service layer.
+Admin endpoints now exist:
+
+- `POST /api/admin/cache/evict`
+- `POST /api/admin/cache/refresh`
+- `POST /api/admin/cache/clear`
+
+Auth behavior:
+
+- requires `X-Admin-Token` header
+- server compares it to `ADMIN_API_TOKEN`
+- if `ADMIN_API_TOKEN` is missing, admin cache API is disabled and returns `503`
+- if token is wrong or missing, returns `401`
+
+Request body for `evict` and `refresh`:
+
+- `origin`
+- `destination`
+- `departureDate`
 
 ### 7. Kakao AlimTalk notification system (NEW)
 
@@ -255,6 +274,7 @@ Current purpose:
 
 - enables Duffel in local Docker
 - provides local `DUFFEL_API_KEY`
+- provides local `ADMIN_API_TOKEN`
 - provides `RAPIDAPI_HOST`
 - enables local SSL-relaxed API clients for Docker:
   - `DUFFEL_INSECURE_SSL=true`
@@ -344,7 +364,7 @@ Reason:
 - cache layer is independent from DB
 - scheduler/on-demand fetch can repopulate data after manual deletes
 
-Cache eviction support now exists in service code, but there is no public endpoint yet.
+Admin cache endpoints now exist for explicit cache eviction/refresh, but they only work when `ADMIN_API_TOKEN` is configured.
 
 ### 2. RapidAPI is often unavailable due to quota
 
@@ -390,6 +410,7 @@ Minimum useful set:
 
 Optional:
 
+- `ADMIN_API_TOKEN` — required only if admin cache API should be enabled
 - `PORT`
 - `DUFFEL_VERSION`
 - `DUFFEL_INSECURE_SSL`
@@ -417,18 +438,24 @@ Deployment prep files already exist:
 - [render.yaml](render.yaml)
 - [DEPLOY_RENDER_NEON.md](DEPLOY_RENDER_NEON.md)
 
-`render.yaml` now has `DUFFEL_ENABLED: "true"` — Duffel is on by default in Render deploys.
+`render.yaml` now includes:
 
-Render/Neon deployment was prepared but not completed end-to-end.
+- `DUFFEL_ENABLED: "true"` — Duffel is on by default in Render deploys
+- `KAKAO_ENABLED: "false"` — Kakao is disabled by default until credentials are provisioned
+- secret placeholders for `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `RAPIDAPI_KEY`, `DUFFEL_API_KEY`, `APP_BASE_URL`, `ADMIN_API_TOKEN`
+
+`DEPLOY_RENDER_NEON.md` is updated for GitLab-based Render deployment and Neon SSL configuration.
+
+Render/Neon deployment config is prepared in-repo, but actual live deployment still requires platform-side setup in Render and Neon.
 
 ## Recommended Next Steps
 
-1. Add an admin/controller endpoint for cache eviction and manual refresh (service layer already ready)
+1. Set `ADMIN_API_TOKEN` in the actual runtime environment before using admin cache endpoints
 2. Wire Kakao `min-price-drop-krw` / `min-price-drop-percent` thresholds into notification guard logic (config exists, enforcement is caller-side)
-3. Complete Render + Neon deployment
+3. Finish the actual Render + Neon platform-side setup using the prepared `render.yaml` and deployment doc
 4. Rotate `.env.local` Duffel token if it expires
-5. Add Kakao env vars to `render.yaml` once NCP SENS account is provisioned
+5. Replace `KAKAO_ENABLED=false` with real Kakao env vars once NCP SENS account is provisioned
 
 ## Suggested Prompt For The Next Agent
 
-> Read `HANDOFF.md` first. This Spring Boot flight service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, internal cache eviction + refresh methods, Kakao AlimTalk notifications via NCP SENS, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.
+> Read `HANDOFF.md` first. This Spring Boot flight service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, admin cache endpoints (`/api/admin/cache/evict`, `/api/admin/cache/refresh`, `/api/admin/cache/clear`) protected by `X-Admin-Token` / `ADMIN_API_TOKEN`, Kakao AlimTalk notifications via NCP SENS, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.

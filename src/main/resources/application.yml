@@ -15,6 +15,10 @@ logging:
   level:
     com.airplanehome.flight: INFO
 
+admin:
+  api:
+    token: ${ADMIN_API_TOKEN:}
+
 app:
   exchange-rate:
     api-url: https://api.exchangerate-api.com/v4/latest/USD

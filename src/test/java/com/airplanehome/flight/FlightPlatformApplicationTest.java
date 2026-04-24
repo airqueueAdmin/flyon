@@ -22,13 +22,20 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "admin.api.token=test-admin-token",
+        "spring.datasource.url=jdbc:h2:mem:flight-platform-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.datasource.username=sa",
+        "spring.datasource.password="
+})
 @AutoConfigureMockMvc
 class FlightPlatformApplicationTest {
     @Autowired
@@ -131,6 +138,26 @@ class FlightPlatformApplicationTest {
                         .content("{\"origin\":\"ICN\",\"destination\":\"LAX\",\"departureDate\":\"2026-06-01\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("This route is not yet supported."));
+    }
+
+    @Test
+    void shouldRefreshCacheThroughAdminEndpoint() throws Exception {
+        mockMvc.perform(post("/api/admin/cache/refresh")
+                        .header("X-Admin-Token", "test-admin-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"origin\":\"icn\",\"destination\":\"nrt\",\"departureDate\":\"2026-06-01\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Cache entry refreshed."));
+
+        verify(flightPrefetchService).refresh("ICN", "NRT", LocalDate.of(2026, 6, 1));
+    }
+
+    @Test
+    void shouldRejectAdminEndpointWithoutValidToken() throws Exception {
+        mockMvc.perform(post("/api/admin/cache/clear")
+                        .header("X-Admin-Token", "wrong-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Invalid admin token."));
     }
 
     private List<FlightPrice> sampleFlights() {

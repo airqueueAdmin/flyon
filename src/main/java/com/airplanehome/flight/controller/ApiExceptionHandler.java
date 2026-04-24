@@ -21,4 +21,10 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Collections.singletonMap("message", exception.getMessage()));
     }
+
+    @ExceptionHandler(AdminCacheController.AdminUnauthorizedException.class)
+    public ResponseEntity<Map<String, String>> handleAdminUnauthorized(AdminCacheController.AdminUnauthorizedException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Collections.singletonMap("message", exception.getMessage()));
+    }
 }
