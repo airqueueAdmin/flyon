@@ -17,6 +17,15 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatFlightSummary(tracking) {
+  const outboundAirline = tracking.lastAirline || "확인 불가";
+  if (tracking.tripType !== "ROUND_TRIP") {
+    return outboundAirline;
+  }
+  const inboundAirline = tracking.lastInboundAirline || "확인 불가";
+  return `${outboundAirline} / ${inboundAirline}`;
+}
+
 function formatSkyscannerDate(value) {
   if (!value) {
     return "";
@@ -73,6 +82,24 @@ function qs(selector) {
   return document.querySelector(selector);
 }
 
+function buildAirportDisplayMap() {
+  const entries = [...AIRPORT_OPTIONS.origin, ...AIRPORT_OPTIONS.destination].map((option) => [option.code, option.displayName]);
+  return Object.fromEntries(entries);
+}
+
+function formatAirport(code) {
+  if (!code) {
+    return "";
+  }
+  const normalizedCode = code.trim().toUpperCase();
+  const displayName = AIRPORT_DISPLAY_MAP[normalizedCode];
+  return displayName ? `${normalizedCode} (${displayName})` : normalizedCode;
+}
+
+function formatRoute(origin, destination) {
+  return `${formatAirport(origin)} -> ${formatAirport(destination)}`;
+}
+
 function buildSkyscannerTrackingUrl(tracking) {
   const origin = (tracking.origin || "").trim().toLowerCase();
   const destination = (tracking.destination || "").trim().toLowerCase();
@@ -100,35 +127,37 @@ function buildSkyscannerTrackingUrl(tracking) {
 
 const AIRPORT_OPTIONS = {
   origin: [
-    { code: "ICN", label: "인천국제공항 (ICN)" }
+    { code: "ICN", label: "ICN (인천)", displayName: "인천" }
   ],
   destination: [
-    { code: "NRT", label: "도쿄 나리타 (NRT)" },
-    { code: "FUK", label: "후쿠오카 (FUK)" },
-    { code: "KIX", label: "오사카 간사이 (KIX)" },
-    { code: "TYO", label: "도쿄 지역 (TYO)" },
-    { code: "CTS", label: "삿포로 치토세 (CTS)" },
-    { code: "OKA", label: "오키나와 나하 (OKA)" },
-    { code: "BKK", label: "방콕 (BKK)" },
-    { code: "HKG", label: "홍콩 (HKG)" },
-    { code: "TPE", label: "타이베이 (TPE)" },
-    { code: "SIN", label: "싱가포르 (SIN)" },
-    { code: "DAD", label: "다낭 (DAD)" },
-    { code: "SGN", label: "호치민 (SGN)" },
-    { code: "MNL", label: "마닐라 (MNL)" },
-    { code: "CEB", label: "세부 (CEB)" },
-    { code: "SFO", label: "샌프란시스코 (SFO)" },
-    { code: "LAX", label: "로스앤젤레스 (LAX)" },
-    { code: "JFK", label: "뉴욕 JFK (JFK)" },
-    { code: "SEA", label: "시애틀 (SEA)" },
-    { code: "YVR", label: "밴쿠버 (YVR)" },
-    { code: "GUM", label: "괌 (GUM)" },
-    { code: "SYD", label: "시드니 (SYD)" },
-    { code: "MEL", label: "멜버른 (MEL)" },
-    { code: "CDG", label: "파리 샤를드골 (CDG)" },
-    { code: "LHR", label: "런던 히드로 (LHR)" }
+    { code: "NRT", label: "NRT (도쿄 나리타)", displayName: "도쿄 나리타" },
+    { code: "FUK", label: "FUK (후쿠오카)", displayName: "후쿠오카" },
+    { code: "KIX", label: "KIX (오사카 간사이)", displayName: "오사카 간사이" },
+    { code: "TYO", label: "TYO (도쿄)", displayName: "도쿄" },
+    { code: "CTS", label: "CTS (삿포로 치토세)", displayName: "삿포로 치토세" },
+    { code: "OKA", label: "OKA (오키나와 나하)", displayName: "오키나와 나하" },
+    { code: "BKK", label: "BKK (방콕)", displayName: "방콕" },
+    { code: "HKG", label: "HKG (홍콩)", displayName: "홍콩" },
+    { code: "TPE", label: "TPE (타이베이)", displayName: "타이베이" },
+    { code: "SIN", label: "SIN (싱가포르)", displayName: "싱가포르" },
+    { code: "DAD", label: "DAD (다낭)", displayName: "다낭" },
+    { code: "SGN", label: "SGN (호치민)", displayName: "호치민" },
+    { code: "MNL", label: "MNL (마닐라)", displayName: "마닐라" },
+    { code: "CEB", label: "CEB (세부)", displayName: "세부" },
+    { code: "SFO", label: "SFO (샌프란시스코)", displayName: "샌프란시스코" },
+    { code: "LAX", label: "LAX (로스앤젤레스)", displayName: "로스앤젤레스" },
+    { code: "JFK", label: "JFK (뉴욕)", displayName: "뉴욕" },
+    { code: "SEA", label: "SEA (시애틀)", displayName: "시애틀" },
+    { code: "YVR", label: "YVR (밴쿠버)", displayName: "밴쿠버" },
+    { code: "GUM", label: "GUM (괌)", displayName: "괌" },
+    { code: "SYD", label: "SYD (시드니)", displayName: "시드니" },
+    { code: "MEL", label: "MEL (멜버른)", displayName: "멜버른" },
+    { code: "CDG", label: "CDG (파리 샤를드골)", displayName: "파리 샤를드골" },
+    { code: "LHR", label: "LHR (런던 히드로)", displayName: "런던 히드로" }
   ]
 };
+
+const AIRPORT_DISPLAY_MAP = buildAirportDisplayMap();
 
 const SEARCH_WINDOW_DAYS = 7;
 
@@ -288,7 +317,7 @@ function initSearchPage() {
       resultCount.textContent = `${flights.length}개의 항공편을 찾았습니다`;
       renderResults(results, flights, (flight) => {
         selectedFlight = flight;
-        selectedRoute.textContent = `${flight.origin} -> ${flight.destination}`;
+        selectedRoute.textContent = formatRoute(flight.origin, flight.destination);
         modalStatus.textContent = "";
         modalStatus.className = "status";
         trackingLink.hidden = true;
@@ -417,7 +446,7 @@ function renderResults(target, flights, onTrack) {
     card.innerHTML = `
       <div class="result-head">
         <div class="meta">
-          <div class="route">${flight.origin} -> ${flight.destination} ${renderApproximateBadge(flight)}</div>
+          <div class="route">${formatRoute(flight.origin, flight.destination)} ${renderApproximateBadge(flight)}</div>
           <div>여정: ${formatTripType(flight.tripType)}</div>
           <div>항공사: ${flight.airline || "확인 불가"}</div>
           ${flight.tripType === "ROUND_TRIP" ? `<div>귀국 항공사: ${flight.inboundAirline || "확인 불가"}</div>` : ""}
@@ -499,7 +528,7 @@ function initTrackingPage() {
       if (focusId) {
         const focused = trackings.find((item) => String(item.id) === focusId);
         focusTitle.textContent = focused
-          ? `알림에서 돌아온 노선: ${focused.origin} -> ${focused.destination}`
+          ? `알림에서 돌아온 노선: ${formatRoute(focused.origin, focused.destination)}`
           : "알림에서 돌아왔습니다";
       }
 
@@ -545,7 +574,7 @@ function renderTrackings(target, trackings, onRemove) {
     card.innerHTML = `
       <div class="tracking-head">
         <div>
-          <div class="route">${tracking.origin} -> ${tracking.destination}</div>
+          <div class="route">${formatRoute(tracking.origin, tracking.destination)}</div>
           <div class="muted">추적 #${tracking.id}</div>
         </div>
         <div class="price">${formatMoney(tracking.lastCheckedPrice)}</div>
@@ -567,6 +596,27 @@ function renderTrackings(target, trackings, onRemove) {
           <span>현재 가격</span>
           <span>${formatMoney(tracking.lastCheckedPrice)}</span>
         </div>
+        <div class="tracking-line">
+          <span>현재 최저가 항공사</span>
+          <span>${formatFlightSummary(tracking)}</span>
+        </div>
+        <div class="tracking-line">
+          <span>현재 최저가 출발</span>
+          <span>${formatDateTime(tracking.lastDepartureTime)}</span>
+        </div>
+        <div class="tracking-line">
+          <span>현재 최저가 도착</span>
+          <span>${formatDateTime(tracking.lastArrivalTime)}</span>
+        </div>
+        ${tracking.tripType === "ROUND_TRIP" ? `
+        <div class="tracking-line">
+          <span>현재 최저가 귀국 출발</span>
+          <span>${formatDateTime(tracking.lastReturnDepartureTime)}</span>
+        </div>
+        <div class="tracking-line">
+          <span>현재 최저가 귀국 도착</span>
+          <span>${formatDateTime(tracking.lastReturnArrivalTime)}</span>
+        </div>` : ""}
         <div class="tracking-line">
           <span>목표 가격</span>
           <span>${formatMoney(tracking.targetPrice)}</span>
@@ -614,6 +664,12 @@ function renderTrackings(target, trackings, onRemove) {
 
     actionRow.appendChild(removeButton);
     card.appendChild(actionRow);
+
+    const note = document.createElement("p");
+    note.className = "inline-note";
+    note.textContent = "스카이스캐너 가격과 순서는 실시간으로 변동될 수 있습니다.";
+    card.appendChild(note);
+
     target.appendChild(card);
   });
 }

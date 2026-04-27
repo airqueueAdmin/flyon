@@ -2,6 +2,7 @@ package com.airplanehome.flight.controller;
 
 import java.util.Collections;
 import java.util.Map;
+import javax.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +26,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AdminCacheController.AdminUnauthorizedException.class)
     public ResponseEntity<Map<String, String>> handleAdminUnauthorized(AdminCacheController.AdminUnauthorizedException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Collections.singletonMap("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleEntityNotFound(EntityNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Collections.singletonMap("message", exception.getMessage()));
     }
 }

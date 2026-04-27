@@ -79,7 +79,7 @@ public class FlightService {
             LocalDate todayKst = TimeSupport.nowKst().toLocalDate();
             LocalDate maxSupportedDate = todayKst.plusDays(SUPPORTED_SEARCH_WINDOW_DAYS - 1L);
             throw new IllegalArgumentException(String.format(
-                    "This route is supported only for dates from %s to %s (KST).",
+                    "이 노선은 %s부터 %s까지의 날짜만 조회할 수 있습니다. (KST 기준)",
                     todayKst,
                     maxSupportedDate));
         }
@@ -92,7 +92,7 @@ public class FlightService {
                 returnDate,
                 normalizedAdults);
         if (results.isEmpty()) {
-            throw new IllegalStateException("Flight data is being prepared. Please try again in a few minutes.");
+            throw new IllegalStateException("항공권 데이터를 준비 중입니다. 잠시 후 다시 시도해 주세요.");
         }
         normalizePricesToKrw(results);
         results.sort(Comparator.comparing(FlightPrice::getPrice));
@@ -138,7 +138,7 @@ public class FlightService {
 
     public Tracking getTracking(Long id) {
         return trackingRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Tracking not found: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id));
     }
 
     public List<Tracking> getTrackings() {
@@ -147,7 +147,7 @@ public class FlightService {
 
     public void deleteTracking(Long id) {
         if (!trackingRepository.existsById(id)) {
-            throw new EntityNotFoundException("Tracking not found: " + id);
+            throw new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id);
         }
         trackingRepository.deleteById(id);
     }
@@ -205,6 +205,12 @@ public class FlightService {
         tracking.setLastCheckedPrice(currentPrice.getPrice());
         tracking.setLastCheckedCurrency(currentPrice.getCurrency());
         tracking.setLastBookingUrl(currentPrice.getBookingUrl());
+        tracking.setLastAirline(currentPrice.getAirline());
+        tracking.setLastInboundAirline(currentPrice.getInboundAirline());
+        tracking.setLastDepartureTime(currentPrice.getDepartureTime());
+        tracking.setLastArrivalTime(currentPrice.getArrivalTime());
+        tracking.setLastReturnDepartureTime(currentPrice.getReturnDepartureTime());
+        tracking.setLastReturnArrivalTime(currentPrice.getReturnArrivalTime());
     }
 
     private PriceDropNotification buildPriceDropNotification(Tracking tracking, FlightPrice currentPrice) {
@@ -272,7 +278,7 @@ public class FlightService {
         boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
         boolean kakaoOptIn = Boolean.TRUE.equals(resolveKakaoOptIn(request));
         if (kakaoEnabled && kakaoOptIn && !StringUtils.hasText(request.getPhoneNumber())) {
-            throw new IllegalArgumentException("phoneNumber is required when Kakao AlimTalk is enabled.");
+            throw new IllegalArgumentException("카카오 알림톡을 사용하는 경우 전화번호를 입력해야 합니다.");
         }
     }
 
@@ -282,7 +288,7 @@ public class FlightService {
                                 LocalDate departureDate,
                                 LocalDate returnDate) {
         if (!StringUtils.hasText(origin) || !StringUtils.hasText(destination) || departureDate == null) {
-            throw new IllegalArgumentException("origin, destination, and departureDate are required.");
+            throw new IllegalArgumentException("출발지, 도착지, 출발일은 필수 입력값입니다.");
         }
         normalizeReturnDate(normalizeTripType(tripType, returnDate), departureDate, returnDate);
     }
@@ -299,10 +305,10 @@ public class FlightService {
             return null;
         }
         if (returnDate == null) {
-            throw new IllegalArgumentException("returnDate is required for ROUND_TRIP.");
+            throw new IllegalArgumentException("왕복 여정은 귀국일을 반드시 입력해야 합니다.");
         }
         if (departureDate != null && returnDate.isBefore(departureDate)) {
-            throw new IllegalArgumentException("returnDate must be on or after departureDate.");
+            throw new IllegalArgumentException("귀국일은 출발일과 같거나 이후여야 합니다.");
         }
         return returnDate;
     }
@@ -312,7 +318,7 @@ public class FlightService {
             return 1;
         }
         if (adults.intValue() < 1) {
-            throw new IllegalArgumentException("adults must be at least 1.");
+            throw new IllegalArgumentException("성인 승객 수는 1명 이상이어야 합니다.");
         }
         return adults.intValue();
     }

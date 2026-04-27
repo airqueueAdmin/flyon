@@ -40,7 +40,7 @@ public class AdminCacheController {
                 normalizeCode(request.getDestination()),
                 request.getDepartureDate(),
                 normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate()));
-        return Collections.singletonMap("message", "Cache entry evicted.");
+        return Collections.singletonMap("message", "캐시 항목을 삭제했습니다.");
     }
 
     @PostMapping("/refresh")
@@ -53,22 +53,22 @@ public class AdminCacheController {
                 normalizeCode(request.getDestination()),
                 request.getDepartureDate(),
                 normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate()));
-        return Collections.singletonMap("message", "Cache entry refreshed.");
+        return Collections.singletonMap("message", "캐시 항목을 새로고침했습니다.");
     }
 
     @PostMapping("/clear")
     public Map<String, String> clear(@RequestHeader(value = ADMIN_TOKEN_HEADER, required = false) String token) {
         authorize(token);
         flightPrefetchService.clearCache();
-        return Collections.singletonMap("message", "Cache cleared.");
+        return Collections.singletonMap("message", "캐시를 모두 비웠습니다.");
     }
 
     private void authorize(String token) {
         if (!StringUtils.hasText(adminApiToken)) {
-            throw new IllegalStateException("Admin cache API is disabled because ADMIN_API_TOKEN is not configured.");
+            throw new IllegalStateException("ADMIN_API_TOKEN이 설정되지 않아 관리자 캐시 API를 사용할 수 없습니다.");
         }
         if (!adminApiToken.equals(token)) {
-            throw new AdminUnauthorizedException("Invalid admin token.");
+            throw new AdminUnauthorizedException("관리자 토큰이 올바르지 않습니다.");
         }
     }
 
@@ -90,10 +90,10 @@ public class AdminCacheController {
             return null;
         }
         if (returnDate == null) {
-            throw new IllegalArgumentException("returnDate is required for ROUND_TRIP.");
+            throw new IllegalArgumentException("왕복 여정은 귀국일을 반드시 입력해야 합니다.");
         }
         if (departureDate != null && returnDate.isBefore(departureDate)) {
-            throw new IllegalArgumentException("returnDate must be on or after departureDate.");
+            throw new IllegalArgumentException("귀국일은 출발일과 같거나 이후여야 합니다.");
         }
         return returnDate;
     }

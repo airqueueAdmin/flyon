@@ -30,6 +30,16 @@ public class Tracking {
     private BigDecimal lastNotifiedPrice;
     private String lastCheckedCurrency;
     private String lastBookingUrl;
+    private String lastAirline;
+    private String lastInboundAirline;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime lastDepartureTime;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime lastArrivalTime;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime lastReturnDepartureTime;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime lastReturnArrivalTime;
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
     private LocalDateTime lastUpdatedAt;
     private Boolean kakaoNotificationEnabled;
@@ -138,6 +148,54 @@ public class Tracking {
 
     public void setLastBookingUrl(String lastBookingUrl) {
         this.lastBookingUrl = lastBookingUrl;
+    }
+
+    public String getLastAirline() {
+        return lastAirline;
+    }
+
+    public void setLastAirline(String lastAirline) {
+        this.lastAirline = lastAirline;
+    }
+
+    public String getLastInboundAirline() {
+        return lastInboundAirline;
+    }
+
+    public void setLastInboundAirline(String lastInboundAirline) {
+        this.lastInboundAirline = lastInboundAirline;
+    }
+
+    public LocalDateTime getLastDepartureTime() {
+        return lastDepartureTime;
+    }
+
+    public void setLastDepartureTime(LocalDateTime lastDepartureTime) {
+        this.lastDepartureTime = lastDepartureTime;
+    }
+
+    public LocalDateTime getLastArrivalTime() {
+        return lastArrivalTime;
+    }
+
+    public void setLastArrivalTime(LocalDateTime lastArrivalTime) {
+        this.lastArrivalTime = lastArrivalTime;
+    }
+
+    public LocalDateTime getLastReturnDepartureTime() {
+        return lastReturnDepartureTime;
+    }
+
+    public void setLastReturnDepartureTime(LocalDateTime lastReturnDepartureTime) {
+        this.lastReturnDepartureTime = lastReturnDepartureTime;
+    }
+
+    public LocalDateTime getLastReturnArrivalTime() {
+        return lastReturnArrivalTime;
+    }
+
+    public void setLastReturnArrivalTime(LocalDateTime lastReturnArrivalTime) {
+        this.lastReturnArrivalTime = lastReturnArrivalTime;
     }
 
     public LocalDateTime getLastUpdatedAt() {
