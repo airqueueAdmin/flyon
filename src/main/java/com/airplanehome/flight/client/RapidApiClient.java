@@ -215,6 +215,7 @@ public class RapidApiClient {
         combined.setProvider(rapidApiHost);
         combined.setTotalPrice(outboundPrice.add(inboundPrice));
         combined.setPrice(outboundPrice.add(inboundPrice));
+        combined.setBookingUrl(null);
         combined.setAirline(outbound.getAirline());
         combined.setOutboundAirline(outbound.getOutboundAirline() == null ? outbound.getAirline() : outbound.getOutboundAirline());
         combined.setInboundAirline(inbound.getOutboundAirline() == null ? inbound.getAirline() : inbound.getOutboundAirline());
@@ -441,6 +442,13 @@ public class RapidApiClient {
                     "price.currency",
                     "purchaseLinks.0.currency"));
             flightPrice.setProvider(rapidApiHost);
+            flightPrice.setBookingUrl(readBookingUrl(offerNode,
+                    "purchaseLinks.0.url",
+                    "purchaseLinks.0.link",
+                    "deeplink",
+                    "deepLink",
+                    "bookingUrl",
+                    "url"));
             String airline = readText(offerNode, "airline", "legs.0.carriers.marketing.0.name", "carriers.0.name");
             flightPrice.setAirline(airline);
             flightPrice.setOutboundAirline(airline);
@@ -506,8 +514,13 @@ public class RapidApiClient {
                 applyPrice(flightPrice, price);
                 flightPrice.setCurrency(readCurrency(item, "price.currency", "currency"));
                 flightPrice.setProvider(rapidApiHost);
+                flightPrice.setBookingUrl(readBookingUrl(item,
+                        "url",
+                        "deepLink",
+                        "purchaseLinks.0.url",
+                        "purchaseLinks.0.link"));
                 String airline = readText(
-                        firstSegment,
+                    firstSegment,
                         "marketingCarrier.name",
                         "operatingCarrier.name");
                 LocalDateTime departureTime = readDateTime(firstLeg, "departure");
@@ -573,6 +586,22 @@ public class RapidApiClient {
             if (!StringUtils.hasText(flightPrice.getProvider())) {
                 flightPrice.setProvider(rapidApiHost);
             }
+            flightPrice.setBookingUrl(readBookingUrl(
+                    pricingOption,
+                    "url",
+                    "deepLink",
+                    "agentItems.0.url",
+                    "agentItems.0.deepLink",
+                    "items.0.url"));
+            if (!StringUtils.hasText(flightPrice.getBookingUrl())) {
+                flightPrice.setBookingUrl(readBookingUrl(
+                        itineraryNode,
+                        "url",
+                        "deepLink",
+                        "shareUrl",
+                        "pricingOptions.0.url",
+                        "pricingOptions.0.deepLink"));
+            }
             String airline = readText(
                     firstSegment,
                     "marketingCarrier.name",
@@ -629,6 +658,12 @@ public class RapidApiClient {
             if (!StringUtils.hasText(flightPrice.getProvider())) {
                 flightPrice.setProvider(rapidApiHost);
             }
+            flightPrice.setBookingUrl(readBookingUrl(
+                    pricingOption,
+                    "url",
+                    "deepLink",
+                    "agentItems.0.url",
+                    "agentItems.0.deepLink"));
             String airline = readText(
                     firstSegment,
                     "marketingCarrier.name",
@@ -719,6 +754,18 @@ public class RapidApiClient {
         }
         if (StringUtils.hasText(currency)) {
             return currency.trim().toUpperCase();
+        }
+        return null;
+    }
+
+    private String readBookingUrl(JsonNode node, String... paths) {
+        String url = readText(node, paths);
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        String normalizedUrl = url.trim();
+        if (normalizedUrl.startsWith("http://") || normalizedUrl.startsWith("https://")) {
+            return normalizedUrl;
         }
         return null;
     }

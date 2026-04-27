@@ -29,6 +29,7 @@ public class Tracking {
     private BigDecimal lastCheckedPrice;
     private BigDecimal lastNotifiedPrice;
     private String lastCheckedCurrency;
+    private String lastBookingUrl;
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
     private LocalDateTime lastUpdatedAt;
     private Boolean kakaoNotificationEnabled;
@@ -129,6 +130,14 @@ public class Tracking {
 
     public void setLastCheckedCurrency(String lastCheckedCurrency) {
         this.lastCheckedCurrency = lastCheckedCurrency;
+    }
+
+    public String getLastBookingUrl() {
+        return lastBookingUrl;
+    }
+
+    public void setLastBookingUrl(String lastBookingUrl) {
+        this.lastBookingUrl = lastBookingUrl;
     }
 
     public LocalDateTime getLastUpdatedAt() {

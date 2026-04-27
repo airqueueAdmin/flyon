@@ -17,6 +17,13 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatSkyscannerDate(value) {
+  if (!value) {
+    return "";
+  }
+  return value.replaceAll("-", "").slice(2);
+}
+
 function formatTripType(value) {
   return value === "ROUND_TRIP" ? "왕복" : "편도";
 }
@@ -64,6 +71,31 @@ async function requestJson(url, options) {
 
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+function buildSkyscannerTrackingUrl(tracking) {
+  const origin = (tracking.origin || "").trim().toLowerCase();
+  const destination = (tracking.destination || "").trim().toLowerCase();
+  const departureDate = formatSkyscannerDate(tracking.departureDate);
+  const returnDate = formatSkyscannerDate(tracking.returnDate);
+  const isRoundTrip = tracking.tripType === "ROUND_TRIP" && returnDate;
+  const path = isRoundTrip
+    ? `/transport/flights/${origin}/${destination}/${departureDate}/${returnDate}/`
+    : `/transport/flights/${origin}/${destination}/${departureDate}/`;
+  const params = new URLSearchParams({
+    adultsv2: String(tracking.passengers || 1),
+    cabinclass: "economy",
+    childrenv2: "",
+    ref: "home",
+    rtn: isRoundTrip ? "1" : "0",
+    preferdirects: "false",
+    outboundaltsenabled: "false",
+    inboundaltsenabled: "false",
+    market: "KR",
+    locale: "ko-KR",
+    currency: "KRW"
+  });
+  return `https://www.skyscanner.co.kr${path}?${params.toString()}`;
 }
 
 const AIRPORT_OPTIONS = {
@@ -309,7 +341,7 @@ function initSearchPage() {
         body: JSON.stringify(payload)
       });
 
-      modalStatus.textContent = "추적이 저장되었습니다. 카카오 알림에서 이 앱으로 돌아올 수 있습니다.";
+      modalStatus.textContent = "추적이 저장되었습니다.";
       modalStatus.className = "status success";
       trackingLink.href = `/tracking.html?id=${tracking.id}`;
       trackingLink.hidden = false;
@@ -555,11 +587,24 @@ function renderTrackings(target, trackings, onRemove) {
           <span>수신 번호</span>
           <span>${tracking.phoneNumber || "미설정"}</span>
         </div>
+        <div class="tracking-line">
+          <span>최저가 이동</span>
+          <span>스카이스캐너</span>
+        </div>
       </div>
     `;
 
     const actionRow = document.createElement("div");
     actionRow.className = "button-row";
+
+    const dealButton = document.createElement("button");
+    dealButton.type = "button";
+    dealButton.className = "button";
+    dealButton.textContent = "스카이스캐너로 이동";
+    dealButton.addEventListener("click", () => {
+      window.location.href = buildSkyscannerTrackingUrl(tracking);
+    });
+    actionRow.appendChild(dealButton);
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";

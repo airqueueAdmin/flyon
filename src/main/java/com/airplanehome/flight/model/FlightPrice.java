@@ -25,6 +25,7 @@ public class FlightPrice {
     private BigDecimal price;
     private String currency;
     private String provider;
+    private String bookingUrl;
     private String airline;
     private String outboundAirline;
     private String inboundAirline;
@@ -116,6 +117,14 @@ public class FlightPrice {
 
     public void setProvider(String provider) {
         this.provider = provider;
+    }
+
+    public String getBookingUrl() {
+        return bookingUrl;
+    }
+
+    public void setBookingUrl(String bookingUrl) {
+        this.bookingUrl = bookingUrl;
     }
 
     public String getAirline() {

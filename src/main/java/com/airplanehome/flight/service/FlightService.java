@@ -127,8 +127,7 @@ public class FlightService {
                 tracking.getPassengers());
 
         if (!currentPrices.isEmpty()) {
-            tracking.setLastCheckedPrice(currentPrices.get(0).getPrice());
-            tracking.setLastCheckedCurrency(currentPrices.get(0).getCurrency());
+            applyLatestPriceSnapshot(tracking, currentPrices.get(0));
         }
         Tracking savedTracking = trackingRepository.save(tracking);
         if (!currentPrices.isEmpty()) {
@@ -182,8 +181,7 @@ public class FlightService {
             if (notification != null) {
                 notifications.add(notification);
             }
-            tracking.setLastCheckedPrice(currentPrice.getPrice());
-            tracking.setLastCheckedCurrency(currentPrice.getCurrency());
+            applyLatestPriceSnapshot(tracking, currentPrice);
             tracking.setLastUpdatedAt(TimeSupport.nowKst());
             trackingRepository.save(tracking);
         }
@@ -201,6 +199,12 @@ public class FlightService {
         history.setCurrency(currentPrice.getCurrency());
         history.setCheckedAt(LocalDateTime.now());
         priceHistoryRepository.save(history);
+    }
+
+    private void applyLatestPriceSnapshot(Tracking tracking, FlightPrice currentPrice) {
+        tracking.setLastCheckedPrice(currentPrice.getPrice());
+        tracking.setLastCheckedCurrency(currentPrice.getCurrency());
+        tracking.setLastBookingUrl(currentPrice.getBookingUrl());
     }
 
     private PriceDropNotification buildPriceDropNotification(Tracking tracking, FlightPrice currentPrice) {

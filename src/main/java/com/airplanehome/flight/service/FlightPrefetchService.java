@@ -635,6 +635,7 @@ public class FlightPrefetchService {
             variant.setPrice(source.getPrice());
             variant.setCurrency(source.getCurrency());
             variant.setProvider(source.getProvider());
+            variant.setBookingUrl(source.getBookingUrl());
             variant.setAirline(source.getAirline());
             variant.setOutboundAirline(source.getOutboundAirline());
             variant.setInboundAirline(source.getInboundAirline());
