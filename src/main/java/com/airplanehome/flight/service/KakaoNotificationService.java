@@ -30,6 +30,7 @@ public class KakaoNotificationService {
     private static final String TEMPLATE_CONTENT =
             "[항공권 가격 변동 안내]\n\n#{route} 항공권 가격이 변경되었습니다.\n\n이전 가격: #{oldPrice}\n현재 가격: #{newPrice}\n\n자세히 보기:\n#{link}";
     private static final String NCP_BASE_URL = "https://sens.apigw.ntruss.com";
+    private static final String SKYSCANNER_BASE_URL = "https://www.skyscanner.co.kr";
 
     private final RestTemplate restTemplate;
     private final boolean enabled;
@@ -126,6 +127,7 @@ public class KakaoNotificationService {
         Map<String, Object> message = new LinkedHashMap<String, Object>();
         message.put("to", normalizedPhoneNumber);
         message.put("content", content);
+        message.put("buttons", buildButtons(tracking));
 
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("plusFriendId", plusFriendId);
@@ -140,7 +142,7 @@ public class KakaoNotificationService {
         variables.put("route", tracking.getOrigin() + " → " + tracking.getDestination());
         variables.put("oldPrice", formatWon(oldPrice));
         variables.put("newPrice", formatWon(newPrice));
-        variables.put("link", buildDeepLink(tracking));
+        variables.put("link", buildTrackingPageLink(tracking));
         return variables;
     }
 
@@ -152,14 +154,71 @@ public class KakaoNotificationService {
         return content;
     }
 
-    private String buildDeepLink(Tracking tracking) {
-        return UriComponentsBuilder.fromHttpUrl(appBaseUrl)
-                .path("/")
-                .queryParam("origin", tracking.getOrigin())
-                .queryParam("destination", tracking.getDestination())
-                .queryParam("date", tracking.getDepartureDate())
-                .build(true)
-                .toUriString();
+    private List<Map<String, String>> buildButtons(Tracking tracking) {
+        List<Map<String, String>> buttons = new java.util.ArrayList<Map<String, String>>();
+        buttons.add(buildWebLinkButton("추적 목록 보기", buildTrackingPageLink(tracking)));
+        buttons.add(buildWebLinkButton("스카이스캐너 이동", buildSkyscannerLink(tracking)));
+        return buttons;
+    }
+
+    private Map<String, String> buildWebLinkButton(String name, String link) {
+        Map<String, String> button = new LinkedHashMap<String, String>();
+        button.put("type", "WL");
+        button.put("name", name);
+        button.put("linkMobile", link);
+        button.put("linkPc", link);
+        return button;
+    }
+
+    private String buildTrackingPageLink(Tracking tracking) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(appBaseUrl)
+                .path("/tracking.html");
+        if (tracking.getId() != null) {
+            builder.queryParam("id", tracking.getId());
+        } else {
+            builder.queryParam("origin", tracking.getOrigin())
+                    .queryParam("destination", tracking.getDestination())
+                    .queryParam("date", tracking.getDepartureDate());
+        }
+        return builder.build(true).toUriString();
+    }
+
+    private String buildSkyscannerLink(Tracking tracking) {
+        boolean roundTrip = tracking.getTripType() != null && tracking.getTripType().isRoundTrip() && tracking.getReturnDate() != null;
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(SKYSCANNER_BASE_URL)
+                .path(roundTrip
+                        ? String.format("/transport/flights/%s/%s/%s/%s/",
+                                normalizeAirportCode(tracking.getOrigin()),
+                                normalizeAirportCode(tracking.getDestination()),
+                                formatSkyscannerDate(tracking.getDepartureDate()),
+                                formatSkyscannerDate(tracking.getReturnDate()))
+                        : String.format("/transport/flights/%s/%s/%s/",
+                                normalizeAirportCode(tracking.getOrigin()),
+                                normalizeAirportCode(tracking.getDestination()),
+                                formatSkyscannerDate(tracking.getDepartureDate())))
+                .queryParam("adultsv2", tracking.getPassengers() == null ? 1 : tracking.getPassengers())
+                .queryParam("cabinclass", "economy")
+                .queryParam("childrenv2", "")
+                .queryParam("ref", "home")
+                .queryParam("rtn", roundTrip ? "1" : "0")
+                .queryParam("preferdirects", "false")
+                .queryParam("outboundaltsenabled", "false")
+                .queryParam("inboundaltsenabled", "false")
+                .queryParam("market", "KR")
+                .queryParam("locale", "ko-KR")
+                .queryParam("currency", "KRW");
+        return builder.build(true).toUriString();
+    }
+
+    private String normalizeAirportCode(String code) {
+        return code == null ? "" : code.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String formatSkyscannerDate(java.time.LocalDate date) {
+        if (date == null) {
+            return "";
+        }
+        return date.format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
     }
 
     private boolean hasRequiredConfiguration() {

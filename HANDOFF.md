@@ -241,6 +241,66 @@ Behavior:
 - North America: ICN|SFO, ICN|LAX, ICN|JFK, ICN|SEA, ICN|YVR, ICN|GUM
 - Oceania/Europe: ICN|SYD, ICN|MEL, ICN|CDG, ICN|LHR
 
+### 10. Tracking UI, Skyscanner redirect, and localization updates (NEW)
+
+Implemented in:
+
+- [src/main/resources/static/app.js](src/main/resources/static/app.js)
+- [src/main/resources/static/index.html](src/main/resources/static/index.html)
+- [src/main/resources/static/tracking.html](src/main/resources/static/tracking.html)
+- [src/main/resources/static/app.css](src/main/resources/static/app.css)
+- [src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java)
+
+Behavior:
+
+- airport codes are displayed in `ICN (인천)` style across search and tracking UI
+- tracking cards now redirect to Skyscanner using per-tracking route/date/passenger data
+- tracking cards show current lowest-price airline and departure times to help users find similar results in Skyscanner
+- user-facing API error messages were localized to Korean
+- Kakao example/flow copy now describes button-based navigation
+- Kakao payload now includes:
+  - `추적 목록 보기` button
+  - `스카이스캐너 이동` button
+
+Important:
+
+- NCP SENS AlimTalk buttons must match the approved Kakao template exactly
+- if the current Kakao template in NCP does not include those buttons, delivery can fail even though the code builds correctly
+
+### 11. Privacy hardening for tracking + Kakao (NEW)
+
+Implemented in:
+
+- [src/main/java/com/airplanehome/flight/controller/dto/TrackingRequest.java](src/main/java/com/airplanehome/flight/controller/dto/TrackingRequest.java)
+- [src/main/java/com/airplanehome/flight/model/Tracking.java](src/main/java/com/airplanehome/flight/model/Tracking.java)
+- [src/main/java/com/airplanehome/flight/service/FlightService.java](src/main/java/com/airplanehome/flight/service/FlightService.java)
+- [src/main/java/com/airplanehome/flight/repository/PriceHistoryRepository.java](src/main/java/com/airplanehome/flight/repository/PriceHistoryRepository.java)
+- [src/main/resources/static/index.html](src/main/resources/static/index.html)
+- [src/main/resources/static/tracking.html](src/main/resources/static/tracking.html)
+
+Behavior:
+
+- tracking creation no longer stores `email`
+- phone number is collected only when Kakao notifications are enabled
+- privacy consent and Kakao third-party sharing consent are split in the UI
+- Kakao-related checkboxes are no longer pre-checked by default
+- `Tracking.phoneNumber` and `Tracking.email` are hidden from JSON responses
+- UI shows `maskedPhoneNumber` instead of raw phone number
+- deleting a tracking now also deletes related `price_history` rows
+- tracking deletion is wrapped in a transaction to avoid `TransactionRequiredException`
+
+Current consent-related fields on `Tracking`:
+
+- `personalDataConsent`
+- `personalDataConsentAt`
+- `kakaoOptIn`
+- `kakaoOptInAt`
+
+Important:
+
+- this is code-level hardening only; it is not a substitute for a full privacy policy, retention policy, or infra/data-governance review
+- existing already-stored PII in old rows is not automatically backfilled/erased by these code changes
+
 ## Local Docker Setup
 
 ### Files
@@ -417,6 +477,7 @@ Behavior:
 - `IllegalArgumentException` -> `400`
 - `IllegalStateException` -> `503`
 - admin auth failures -> `401`
+- `EntityNotFoundException` -> `404`
 - response body shape is `{ "message": "..." }`
 
 ## Environment Variables
