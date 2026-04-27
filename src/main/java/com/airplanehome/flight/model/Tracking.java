@@ -1,6 +1,7 @@
 package com.airplanehome.flight.model;
 
 import com.airplanehome.flight.serialization.KstLocalDateTimeSerializer;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ public class Tracking {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @JsonIgnore
     private String email;
     @Enumerated(EnumType.STRING)
     private TripType tripType;
@@ -43,8 +45,14 @@ public class Tracking {
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
     private LocalDateTime lastUpdatedAt;
     private Boolean kakaoNotificationEnabled;
+    @JsonIgnore
     private String phoneNumber;
     private Boolean kakaoOptIn;
+    private Boolean personalDataConsent;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime personalDataConsentAt;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime kakaoOptInAt;
 
     public Long getId() {
         return id;
@@ -222,11 +230,42 @@ public class Tracking {
         this.phoneNumber = phoneNumber;
     }
 
+    public String getMaskedPhoneNumber() {
+        if (phoneNumber == null || phoneNumber.length() < 8) {
+            return null;
+        }
+        return phoneNumber.substring(0, 3) + "****" + phoneNumber.substring(phoneNumber.length() - 4);
+    }
+
     public Boolean getKakaoOptIn() {
         return kakaoOptIn;
     }
 
     public void setKakaoOptIn(Boolean kakaoOptIn) {
         this.kakaoOptIn = kakaoOptIn;
+    }
+
+    public Boolean getPersonalDataConsent() {
+        return personalDataConsent;
+    }
+
+    public void setPersonalDataConsent(Boolean personalDataConsent) {
+        this.personalDataConsent = personalDataConsent;
+    }
+
+    public LocalDateTime getPersonalDataConsentAt() {
+        return personalDataConsentAt;
+    }
+
+    public void setPersonalDataConsentAt(LocalDateTime personalDataConsentAt) {
+        this.personalDataConsentAt = personalDataConsentAt;
+    }
+
+    public LocalDateTime getKakaoOptInAt() {
+        return kakaoOptInAt;
+    }
+
+    public void setKakaoOptInAt(LocalDateTime kakaoOptInAt) {
+        this.kakaoOptInAt = kakaoOptInAt;
     }
 }

@@ -105,13 +105,21 @@
           <input id="phone-number" type="tel" inputmode="numeric" placeholder="01012345678">
         </div>
         <label class="checkline" for="kakao-enabled">
-          <input id="kakao-enabled" type="checkbox" checked>
+          <input id="kakao-enabled" type="checkbox">
           <span>카카오 알림 받기</span>
         </label>
-        <label class="checkline" for="kakao-opt-in">
-          <input id="kakao-opt-in" type="checkbox" checked>
-          <span>알림톡 수신 동의</span>
-        </label>
+        <div id="privacy-consent-group" class="meta" hidden>
+          <p class="inline-note">수집 항목: 휴대전화번호 / 목적: 가격 하락 알림 발송 / 보관: 추적 삭제 시 즉시 파기 / 거부 시 카카오 알림 기능만 제한됩니다.</p>
+          <label class="checkline" for="privacy-consent">
+            <input id="privacy-consent" type="checkbox">
+            <span>개인정보 수집·이용에 동의합니다.</span>
+          </label>
+          <p class="inline-note">제공받는 자: 네이버클라우드 SENS / 제공 항목: 휴대전화번호, 알림 내용 / 목적: 알림톡 발송 / 보관: 발송 처리 목적 범위 내</p>
+          <label class="checkline" for="kakao-opt-in">
+            <input id="kakao-opt-in" type="checkbox">
+            <span>알림톡 발송을 위한 개인정보 제공에 동의합니다.</span>
+          </label>
+        </div>
         <div class="modal-actions">
           <button class="button" type="submit">추적 시작</button>
           <button id="close-modal" class="ghost-button" type="button">닫기</button>

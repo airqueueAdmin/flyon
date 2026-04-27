@@ -20,6 +20,7 @@ public class TrackingRequest {
     @JsonAlias("adults")
     private Integer passengers;
     private BigDecimal targetPrice;
+    private Boolean personalDataConsent;
     private Boolean kakaoNotificationEnabled;
     private String phoneNumber;
     private Boolean kakaoOptIn;
@@ -97,6 +98,14 @@ public class TrackingRequest {
 
     public void setTargetPrice(BigDecimal targetPrice) {
         this.targetPrice = targetPrice;
+    }
+
+    public Boolean getPersonalDataConsent() {
+        return personalDataConsent;
+    }
+
+    public void setPersonalDataConsent(Boolean personalDataConsent) {
+        this.personalDataConsent = personalDataConsent;
     }
 
     public Boolean getKakaoNotificationEnabled() {

@@ -254,6 +254,11 @@ function initSearchPage() {
   const returnDateInput = qs("#return-date");
   const returnDateField = qs("#return-date-field");
   const searchWindowNote = qs("#search-window-note");
+  const kakaoEnabledInput = qs("#kakao-enabled");
+  const privacyConsentInput = qs("#privacy-consent");
+  const privacyConsentGroup = qs("#privacy-consent-group");
+  const kakaoOptInInput = qs("#kakao-opt-in");
+  const phoneNumberInput = qs("#phone-number");
   const tripTypeInputs = document.querySelectorAll('input[name="trip-type"]');
   let selectedFlight = null;
   let searchState = null;
@@ -263,6 +268,7 @@ function initSearchPage() {
   applySearchDateWindow();
   syncTripTypeFields();
   syncReturnDateConstraint();
+  syncKakaoFields();
   loadNotificationExample("#kakao-example");
 
   tripTypeInputs.forEach((input) => {
@@ -274,6 +280,10 @@ function initSearchPage() {
 
   departureDateInput.addEventListener("change", () => {
     syncReturnDateConstraint();
+  });
+
+  kakaoEnabledInput.addEventListener("change", () => {
+    syncKakaoFields();
   });
 
   form.addEventListener("submit", async (event) => {
@@ -349,7 +359,7 @@ function initSearchPage() {
     modalStatus.className = "status";
 
     const rawTargetPrice = qs("#target-price").value.trim();
-    const kakaoEnabled = qs("#kakao-enabled").checked;
+    const kakaoEnabled = kakaoEnabledInput.checked;
     const payload = {
       tripType: searchState.tripType,
       origin: searchState.origin,
@@ -359,8 +369,9 @@ function initSearchPage() {
       adults: searchState.adults,
       targetPrice: rawTargetPrice ? Number(rawTargetPrice) : null,
       kakaoNotificationEnabled: kakaoEnabled,
-      kakaoOptIn: kakaoEnabled && qs("#kakao-opt-in").checked,
-      phoneNumber: qs("#phone-number").value.trim()
+      personalDataConsent: kakaoEnabled && privacyConsentInput.checked,
+      kakaoOptIn: kakaoEnabled && kakaoOptInInput.checked,
+      phoneNumber: kakaoEnabled ? phoneNumberInput.value.trim() : ""
     };
 
     try {
@@ -375,6 +386,7 @@ function initSearchPage() {
       trackingLink.href = `/tracking.html?id=${tracking.id}`;
       trackingLink.hidden = false;
       modalForm.reset();
+      syncKakaoFields();
     } catch (error) {
       modalStatus.textContent = error.message;
       modalStatus.className = "status error";
@@ -392,6 +404,21 @@ function initSearchPage() {
     returnDateInput.required = isRoundTrip;
     if (!isRoundTrip) {
       returnDateInput.value = "";
+    }
+  }
+
+  function syncKakaoFields() {
+    const enabled = kakaoEnabledInput.checked;
+    privacyConsentGroup.hidden = !enabled;
+    kakaoOptInInput.disabled = !enabled;
+    phoneNumberInput.disabled = !enabled;
+    phoneNumberInput.required = enabled;
+    privacyConsentInput.required = enabled;
+    kakaoOptInInput.required = enabled;
+    if (!enabled) {
+      phoneNumberInput.value = "";
+      privacyConsentInput.checked = false;
+      kakaoOptInInput.checked = false;
     }
   }
 
@@ -624,18 +651,6 @@ function renderTrackings(target, trackings, onRemove) {
         <div class="tracking-line">
           <span>마지막 업데이트</span>
           <span>${formatDateTime(tracking.lastUpdatedAt)}</span>
-        </div>
-        <div class="tracking-line">
-          <span>카카오 알림</span>
-          <span>${tracking.kakaoNotificationEnabled ? "사용" : "끔"}</span>
-        </div>
-        <div class="tracking-line">
-          <span>알림톡 수신 동의</span>
-          <span>${tracking.kakaoOptIn ? "동의" : "미동의"}</span>
-        </div>
-        <div class="tracking-line">
-          <span>수신 번호</span>
-          <span>${tracking.phoneNumber || "미설정"}</span>
         </div>
         <div class="tracking-line">
           <span>최저가 이동</span>

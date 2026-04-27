@@ -105,17 +105,23 @@ public class FlightService {
         Tracking tracking = new Tracking();
         TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
         LocalDate returnDate = normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate());
+        boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
+        boolean personalDataConsent = Boolean.TRUE.equals(request.getPersonalDataConsent());
+        boolean kakaoOptIn = kakaoEnabled && Boolean.TRUE.equals(resolveKakaoOptIn(request));
         tracking.setTripType(tripType);
-        tracking.setEmail(request.getEmail());
+        tracking.setEmail(null);
         tracking.setOrigin(request.getOrigin().trim().toUpperCase());
         tracking.setDestination(request.getDestination().trim().toUpperCase());
         tracking.setDepartureDate(request.getDepartureDate());
         tracking.setReturnDate(returnDate);
         tracking.setPassengers(Integer.valueOf(normalizeAdults(request.getAdults())));
         tracking.setTargetPrice(request.getTargetPrice());
-        tracking.setKakaoNotificationEnabled(Boolean.TRUE.equals(request.getKakaoNotificationEnabled()));
-        tracking.setPhoneNumber(normalizePhoneNumber(request.getPhoneNumber()));
-        tracking.setKakaoOptIn(resolveKakaoOptIn(request));
+        tracking.setKakaoNotificationEnabled(Boolean.valueOf(kakaoEnabled));
+        tracking.setPhoneNumber(kakaoEnabled ? normalizePhoneNumber(request.getPhoneNumber()) : null);
+        tracking.setKakaoOptIn(Boolean.valueOf(kakaoOptIn));
+        tracking.setPersonalDataConsent(Boolean.valueOf(personalDataConsent));
+        tracking.setPersonalDataConsentAt(personalDataConsent ? TimeSupport.nowKst() : null);
+        tracking.setKakaoOptInAt(kakaoOptIn ? TimeSupport.nowKst() : null);
         tracking.setLastUpdatedAt(TimeSupport.nowKst());
 
         List<FlightPrice> currentPrices = searchLowestPrice(
@@ -149,6 +155,7 @@ public class FlightService {
         if (!trackingRepository.existsById(id)) {
             throw new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id);
         }
+        priceHistoryRepository.deleteByTrackingId(id);
         trackingRepository.deleteById(id);
     }
 
@@ -277,7 +284,14 @@ public class FlightService {
         validateSearch(tripType, request.getOrigin(), request.getDestination(), request.getDepartureDate(), request.getReturnDate());
         boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
         boolean kakaoOptIn = Boolean.TRUE.equals(resolveKakaoOptIn(request));
-        if (kakaoEnabled && kakaoOptIn && !StringUtils.hasText(request.getPhoneNumber())) {
+        boolean personalDataConsent = Boolean.TRUE.equals(request.getPersonalDataConsent());
+        if (kakaoEnabled && !personalDataConsent) {
+            throw new IllegalArgumentException("카카오 알림을 사용하려면 개인정보 수집·이용에 동의해야 합니다.");
+        }
+        if (kakaoEnabled && !kakaoOptIn) {
+            throw new IllegalArgumentException("카카오 알림을 사용하려면 알림톡 발송을 위한 개인정보 제공에 동의해야 합니다.");
+        }
+        if (kakaoEnabled && !StringUtils.hasText(request.getPhoneNumber())) {
             throw new IllegalArgumentException("카카오 알림톡을 사용하는 경우 전화번호를 입력해야 합니다.");
         }
     }
