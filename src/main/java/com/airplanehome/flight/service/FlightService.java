@@ -20,6 +20,7 @@ import javax.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -151,6 +152,7 @@ public class FlightService {
         return trackingRepository.findAll();
     }
 
+    @Transactional
     public void deleteTracking(Long id) {
         if (!trackingRepository.existsById(id)) {
             throw new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id);
