@@ -214,7 +214,24 @@ function renderNotificationExample(target, payload) {
   if (!target) {
     return;
   }
-  target.textContent = JSON.stringify(payload, null, 2);
+
+  const variables = payload && payload.templateVariables ? payload.templateVariables : {};
+  const route = variables.route || "인천 -> 도쿄";
+  const oldPrice = variables.oldPrice || "320,000원";
+  const newPrice = variables.newPrice || "270,000원";
+  const buttonLabels = extractNotificationButtons(payload);
+
+  target.innerHTML = `
+    <div class="message-bubble">
+      <div class="message-badge">카카오 알림</div>
+      <strong>${escapeHtml(route)} 가격이 내려갔어요</strong>
+      <p>이전 가격 ${escapeHtml(oldPrice)} -> 현재 가격 ${escapeHtml(newPrice)}</p>
+      <p>버튼을 눌러 추적 목록을 확인하거나 바로 예약처로 이동할 수 있습니다.</p>
+      <div class="message-button-row">
+        ${buttonLabels.map((label) => `<span class="message-chip">${escapeHtml(label)}</span>`).join("")}
+      </div>
+    </div>
+  `;
 }
 
 async function loadNotificationExample(targetSelector) {
@@ -227,8 +244,33 @@ async function loadNotificationExample(targetSelector) {
     const payload = await requestJson("/api/notifications/kakao/example");
     renderNotificationExample(target, payload);
   } catch (error) {
-    target.textContent = "카카오 예시 메시지를 지금 불러올 수 없습니다.";
+    target.innerHTML = `
+      <div class="message-bubble">
+        <div class="message-badge">카카오 알림</div>
+        <strong>가격 변동 알림 예시</strong>
+        <p>가격이 내려가면 추적 중인 노선의 현재 가격과 이동 버튼을 함께 보여줍니다.</p>
+      </div>
+    `;
   }
+}
+
+function extractNotificationButtons(payload) {
+  const messages = payload && Array.isArray(payload.messages) ? payload.messages : [];
+  const firstMessage = messages.length ? messages[0] : null;
+  const buttons = firstMessage && Array.isArray(firstMessage.buttons) ? firstMessage.buttons : [];
+  const labels = buttons
+    .map((button) => button.name)
+    .filter((value) => value);
+  return labels.length ? labels : ["추적 목록 보기", "예약처로 이동"];
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 document.addEventListener("DOMContentLoaded", () => {

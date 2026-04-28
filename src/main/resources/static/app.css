@@ -391,6 +391,56 @@ select:focus {
   line-height: 1.5;
 }
 
+.message-preview-wrap {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.message-preview {
+  margin-top: 12px;
+}
+
+.message-bubble {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px 18px 18px 8px;
+  background: #f6e54f;
+  color: #2d2515;
+  box-shadow: 0 14px 24px rgba(45, 37, 21, 0.12);
+}
+
+.message-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(45, 37, 21, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-bubble p {
+  line-height: 1.5;
+}
+
+.message-button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.message-chip {
+  display: inline-flex;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(45, 37, 21, 0.08);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .empty-state {
   padding: 24px;
   text-align: center;
@@ -398,6 +448,14 @@ select:focus {
 
 .landing-grid {
   align-items: start;
+}
+
+.search-page-grid {
+  align-items: start;
+}
+
+.search-form-card {
+  max-width: 760px;
 }
 
 .landing-hero h1 {
@@ -428,6 +486,11 @@ select:focus {
   display: grid;
   gap: 4px;
   line-height: 1.25;
+}
+
+.route-link-title-inline {
+  display: block;
+  line-height: 1.35;
 }
 
 .route-link-title span:first-child::after {
@@ -517,6 +580,23 @@ select:focus {
     max-width: none;
   }
 
+  .search-page-grid {
+    gap: 14px;
+  }
+
+  .search-hero-copy {
+    gap: 8px;
+  }
+
+  .search-form-card,
+  .search-results-card,
+  .search-routes-card,
+  .search-guide-card {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
   .hero-copy h3,
   .landing-hero h1 {
     font-size: clamp(1.6rem, 7vw, 2.2rem);
@@ -566,6 +646,29 @@ select:focus {
     min-height: 46px;
   }
 
+  .search-page-card h2 {
+    font-size: 1.15rem;
+  }
+
+  .search-form {
+    gap: 12px;
+  }
+
+  .search-form-card .field-grid {
+    gap: 10px;
+  }
+
+  .search-form-card .field label,
+  .search-form-card .field-label {
+    font-size: 13px;
+  }
+
+  .search-form-card input[type="date"],
+  .search-form-card input[type="number"],
+  .search-form-card select {
+    padding: 11px 12px;
+  }
+
   .trip-type-toggle {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -609,6 +712,40 @@ select:focus {
   .tracking-list {
     gap: 12px;
   }
+
+  .search-hero-copy {
+    order: 1;
+  }
+
+  .search-form-card {
+    order: 2;
+  }
+
+  .search-routes-card {
+    order: 3;
+  }
+
+  .search-results-card {
+    order: 4;
+  }
+
+  .search-guide-card {
+    order: 5;
+  }
+
+  .search-guide-card .flow-list {
+    gap: 10px;
+  }
+
+  .search-guide-card .flow-item {
+    padding: 10px 12px;
+  }
+
+  .search-guide-card .demo-box {
+    margin-top: 12px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 480px) {
@@ -644,5 +781,35 @@ select:focus {
   .inline-note,
   .status {
     font-size: 13px;
+  }
+
+  .search-hero-copy .muted {
+    font-size: 14px;
+  }
+
+  .search-form-card {
+    padding: 13px;
+  }
+
+  .search-form-card .trip-type-toggle {
+    gap: 8px;
+  }
+
+  .search-form-card .trip-type-option {
+    padding: 10px 12px;
+  }
+
+  .search-form-card input[type="date"],
+  .search-form-card input[type="number"],
+  .search-form-card select {
+    min-height: 44px;
+  }
+
+  .search-guide-card .demo-box {
+    display: none;
+  }
+
+  .message-bubble {
+    padding: 14px;
   }
 }
