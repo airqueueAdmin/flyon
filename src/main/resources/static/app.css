@@ -94,6 +94,10 @@ p {
   letter-spacing: -0.03em;
 }
 
+.search-hero-title {
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -491,6 +495,9 @@ select:focus {
 .route-link-title-inline {
   display: block;
   line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .route-link-title span:first-child::after {
@@ -601,6 +608,11 @@ select:focus {
   .landing-hero h1 {
     font-size: clamp(1.6rem, 7vw, 2.2rem);
     line-height: 1.12;
+  }
+
+  .search-hero-title {
+    font-size: clamp(1.12rem, 4.7vw, 1.55rem);
+    letter-spacing: -0.045em;
   }
 
   .search-card,
@@ -757,6 +769,10 @@ select:focus {
   .hero-copy h3,
   .landing-hero h1 {
     font-size: 1.45rem;
+  }
+
+  .search-hero-title {
+    font-size: 0.98rem;
   }
 
   .search-card,

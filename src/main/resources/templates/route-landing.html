@@ -98,10 +98,7 @@
           </div>
           <div class="route-link-grid">
             <a class="route-link-card" th:each="related : ${relatedRoutes}" th:href="@{/routes/{slug}(slug=${related.slug})}">
-              <strong class="route-link-title">
-                <span th:text="${related.originCityKorean}">인천</span>
-                <span th:text="${related.destinationCityKorean}">후쿠오카</span>
-              </strong>
+              <strong class="route-link-title-inline" th:text="${related.originCityKorean + ' -> ' + related.destinationCityKorean}">인천 -> 후쿠오카</strong>
               <span th:text="${related.ctaLabel}"></span>
             </a>
           </div>
