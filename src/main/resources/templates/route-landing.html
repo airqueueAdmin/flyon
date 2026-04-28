@@ -24,7 +24,6 @@
       <div class="grid landing-grid">
         <div class="hero-copy">
           <h1 th:text="${route.routeLabel}">인천 (ICN) -> 후쿠오카 (FUK)</h1>
-          <p class="muted" th:text="${route.description}"></p>
           <div class="landing-points">
             <div class="flow-item">
               <strong>추천 사용자</strong>
@@ -99,7 +98,6 @@
           <div class="route-link-grid">
             <a class="route-link-card" th:each="related : ${relatedRoutes}" th:href="@{/routes/{slug}(slug=${related.slug})}">
               <strong class="route-link-title-inline" th:text="${related.originCityKorean + ' -> ' + related.destinationCityKorean}">인천 -> 후쿠오카</strong>
-              <span th:text="${related.ctaLabel}"></span>
             </a>
           </div>
         </section>
