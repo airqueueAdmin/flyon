@@ -2,6 +2,7 @@ package com.airplanehome.flight.service;
 
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,55 +34,36 @@ public class KakaoNotificationService {
     private static final String SKYSCANNER_BASE_URL = "https://www.skyscanner.co.kr";
 
     private final RestTemplate restTemplate;
-    private final boolean enabled;
-    private final String provider;
-    private final String apiKey;
-    private final String apiSecret;
-    private final String senderNumber;
-    private final String templateCode;
-    private final String serviceId;
-    private final String plusFriendId;
+    private final KakaoNotificationProperties properties;
     private final String appBaseUrl;
 
     public KakaoNotificationService(RestTemplate restTemplate,
-                                    @Value("${app.kakao.enabled:false}") boolean enabled,
-                                    @Value("${app.kakao.provider:ncp-sens}") String provider,
-                                    @Value("${app.kakao.api-key:}") String apiKey,
-                                    @Value("${app.kakao.api-secret:}") String apiSecret,
-                                    @Value("${app.kakao.sender-number:}") String senderNumber,
-                                    @Value("${app.kakao.template-code:}") String templateCode,
-                                    @Value("${app.kakao.service-id:}") String serviceId,
-                                    @Value("${app.kakao.plus-friend-id:}") String plusFriendId,
+                                    KakaoNotificationProperties properties,
                                     @Value("${app.web.base-url}") String appBaseUrl) {
         this.restTemplate = restTemplate;
-        this.enabled = enabled;
-        this.provider = provider;
-        this.apiKey = apiKey;
-        this.apiSecret = apiSecret;
-        this.senderNumber = senderNumber;
-        this.templateCode = templateCode;
-        this.serviceId = serviceId;
-        this.plusFriendId = plusFriendId;
+        this.properties = properties;
         this.appBaseUrl = appBaseUrl;
     }
 
     public boolean sendAlimTalk(Tracking tracking, int oldPrice, int newPrice) {
         String route = tracking.getOrigin() + "→" + tracking.getDestination();
-        if (!enabled) {
+        if (!properties.isEnabled()) {
             log.error("KAKAO_FAILED: disabled {}", route);
             return false;
         }
-        if (!"ncp-sens".equalsIgnoreCase(provider)) {
-            log.error("KAKAO_FAILED: unsupported provider {}", provider);
+        if (!"ncp-sens".equalsIgnoreCase(properties.getProvider())) {
+            log.error("KAKAO_FAILED: unsupported provider {}", properties.getProvider());
             return false;
         }
         String normalizedPhoneNumber = normalizePhoneNumber(tracking.getPhoneNumber());
-        if (!hasRequiredConfiguration() || !StringUtils.hasText(normalizedPhoneNumber)) {
-            log.error("KAKAO_FAILED: missing configuration or recipient {}", route);
+        if (!properties.getMissingRequiredFields().isEmpty() || !StringUtils.hasText(normalizedPhoneNumber)) {
+            log.error("KAKAO_FAILED: missing configuration or recipient {} missing={}",
+                    route,
+                    properties.getMissingRequiredFields());
             return false;
         }
 
-        String path = "/alimtalk/v2/services/" + serviceId + "/messages";
+        String path = "/alimtalk/v2/services/" + properties.getServiceId() + "/messages";
         Map<String, Object> payload = buildPayload(tracking, normalizedPhoneNumber, oldPrice, newPrice);
 
         HttpHeaders headers = new HttpHeaders();
@@ -120,6 +102,26 @@ public class KakaoNotificationService {
         return buildPayload(tracking, normalizePhoneNumber(tracking.getPhoneNumber()), 320000, 270000);
     }
 
+    public Map<String, Object> previewPayload(Tracking tracking, int oldPrice, int newPrice) {
+        return buildPayload(tracking, normalizePhoneNumber(tracking.getPhoneNumber()), oldPrice, newPrice);
+    }
+
+    public Map<String, Object> status() {
+        Map<String, Object> status = new LinkedHashMap<String, Object>();
+        List<String> missingConfiguration = new ArrayList<String>(properties.getMissingRequiredFields());
+        status.put("enabled", Boolean.valueOf(properties.isEnabled()));
+        status.put("ready", Boolean.valueOf(properties.isReady()));
+        status.put("provider", properties.getProvider());
+        status.put("templateCode", properties.getTemplateCode());
+        status.put("plusFriendId", properties.getPlusFriendId());
+        status.put("senderNumberMasked", maskPhoneNumber(properties.getSenderNumber()));
+        status.put("appBaseUrl", appBaseUrl);
+        status.put("minPriceDropKrw", properties.getMinPriceDropKrw());
+        status.put("minPriceDropPercent", properties.getMinPriceDropPercent());
+        status.put("missingConfiguration", missingConfiguration);
+        return status;
+    }
+
     private Map<String, Object> buildPayload(Tracking tracking, String normalizedPhoneNumber, int oldPrice, int newPrice) {
         Map<String, String> variables = buildTemplateVariables(tracking, oldPrice, newPrice);
         String content = applyTemplate(variables);
@@ -130,8 +132,8 @@ public class KakaoNotificationService {
         message.put("buttons", buildButtons(tracking));
 
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
-        payload.put("plusFriendId", plusFriendId);
-        payload.put("templateCode", templateCode);
+        payload.put("plusFriendId", properties.getPlusFriendId());
+        payload.put("templateCode", properties.getTemplateCode());
         payload.put("messages", java.util.Collections.singletonList(message));
         payload.put("templateVariables", variables);
         return payload;
@@ -221,15 +223,6 @@ public class KakaoNotificationService {
         return date.format(java.time.format.DateTimeFormatter.ofPattern("yyMMdd"));
     }
 
-    private boolean hasRequiredConfiguration() {
-        return StringUtils.hasText(apiKey)
-                && StringUtils.hasText(apiSecret)
-                && StringUtils.hasText(senderNumber)
-                && StringUtils.hasText(templateCode)
-                && StringUtils.hasText(serviceId)
-                && StringUtils.hasText(plusFriendId);
-    }
-
     private boolean isAccepted(ResponseEntity<Map> response) {
         if (response.getStatusCodeValue() != 202) {
             return false;
@@ -253,15 +246,15 @@ public class KakaoNotificationService {
     private void addNcpSignatureHeaders(HttpHeaders headers, String path) {
         String timestamp = String.valueOf(System.currentTimeMillis());
         headers.set("x-ncp-apigw-timestamp", timestamp);
-        headers.set("x-ncp-iam-access-key", apiKey);
+        headers.set("x-ncp-iam-access-key", properties.getApiKey());
         headers.set("x-ncp-apigw-signature-v2", createSignature("POST", path, timestamp));
     }
 
     private String createSignature(String method, String path, String timestamp) {
-        String message = method + " " + path + "\n" + timestamp + "\n" + apiKey;
+        String message = method + " " + path + "\n" + timestamp + "\n" + properties.getApiKey();
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(apiSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(properties.getApiSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] rawHmac = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(rawHmac);
         } catch (Exception ex) {
@@ -286,5 +279,17 @@ public class KakaoNotificationService {
             return "82" + digits.substring(1);
         }
         return digits;
+    }
+
+    private String maskPhoneNumber(String phoneNumber) {
+        if (!StringUtils.hasText(phoneNumber)) {
+            return null;
+        }
+
+        String digits = phoneNumber.replaceAll("[^0-9]", "");
+        if (digits.length() < 7) {
+            return digits;
+        }
+        return digits.substring(0, 3) + "****" + digits.substring(digits.length() - 4);
     }
 }

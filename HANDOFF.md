@@ -176,8 +176,10 @@ Request body for `evict` and `refresh`:
 Implemented in:
 
 - [src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java)
+- [src/main/java/com/airplanehome/flight/service/KakaoNotificationProperties.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationProperties.java)
 - [src/main/java/com/airplanehome/flight/service/FlightService.java](src/main/java/com/airplanehome/flight/service/FlightService.java)
 - [src/main/java/com/airplanehome/flight/model/Tracking.java](src/main/java/com/airplanehome/flight/model/Tracking.java)
+- [src/main/java/com/airplanehome/flight/controller/NotificationController.java](src/main/java/com/airplanehome/flight/controller/NotificationController.java)
 
 Behavior:
 
@@ -195,6 +197,22 @@ Behavior:
   - duplicate suppression via `tracking.lastNotifiedPrice`
   - `app.kakao.min-price-drop-krw` threshold (default 10000 KRW)
   - `app.kakao.min-price-drop-percent` threshold (default 5%)
+- operational helper APIs now exist:
+  - `GET /api/notifications/kakao/status`
+  - `GET /api/notifications/kakao/example`
+  - `GET /api/notifications/kakao/trackings/{trackingId}/preview?previousPrice=320000&currentPrice=270000`
+- `status` endpoint returns:
+  - `enabled`
+  - `ready`
+  - `provider`
+  - `templateCode`
+  - `plusFriendId`
+  - `senderNumberMasked`
+  - `appBaseUrl`
+  - `minPriceDropKrw`
+  - `minPriceDropPercent`
+  - `missingConfiguration`
+- `preview` endpoint builds the real outbound AlimTalk payload for an existing tracking row without calling NCP
 
 Tracking model now includes:
 
@@ -219,6 +237,47 @@ Optional:
 - `KAKAO_PROVIDER` (default: `ncp-sens`)
 - `KAKAO_MIN_PRICE_DROP_KRW` (default: 10000)
 - `KAKAO_MIN_PRICE_DROP_PERCENT` (default: 5)
+
+### 7a. Where to find NCP SENS values
+
+Important:
+
+- this project does not use Kakao Developers REST/Admin keys for outbound customer notifications
+- it uses NCP SENS AlimTalk credentials and metadata
+- Kakao Developers keys shared by a user are not directly usable for the current implementation
+
+Where to find each required value:
+
+- `KAKAO_API_KEY`
+  - NCP console -> account menu / My Page -> authentication key management
+  - use the NCP `Access Key ID`
+- `KAKAO_API_SECRET`
+  - NCP console -> account menu / My Page -> authentication key management
+  - use the NCP `Secret Key`
+- `KAKAO_SERVICE_ID`
+  - NCP console -> SENS -> Biz Message / AlimTalk project
+  - use the project `serviceId`
+- `KAKAO_PLUS_FRIEND_ID`
+  - NCP console -> SENS -> AlimTalk project -> channels
+  - use the registered channel ID from SENS
+  - expected form is typically `@...`
+  - a Kakao channel search ID like `_xxxxxx` may not be the same value
+- `KAKAO_TEMPLATE_CODE`
+  - NCP console -> SENS -> AlimTalk project -> templates
+  - use the approved template code
+- `KAKAO_SENDER_NUMBER`
+  - NCP console -> SENS / SMS sender-number management
+  - use a registered sender number
+- `APP_BASE_URL`
+  - the deployed app base URL used for deep links in buttons and tracking pages
+
+Practical verification order:
+
+1. fill the env vars
+2. start the app
+3. call `GET /api/notifications/kakao/status`
+4. confirm `ready=true`
+5. call preview endpoint for a real tracking row and compare the payload against the approved NCP template
 
 ### 8. KST time support (NEW)
 

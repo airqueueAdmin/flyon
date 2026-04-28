@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title th:text="${route.title}">항공권 가격 추적</title>
+  <meta name="description" th:content="${route.description}">
+  <link rel="canonical" th:href="${canonicalUrl}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" th:content="${route.title}">
+  <meta property="og:description" th:content="${route.description}">
+  <meta property="og:url" th:content="${canonicalUrl}">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json" th:inline="none" th:utext="${faqJson}"></script>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero landing-hero">
+      <div class="hero-top">
+        <span class="eyebrow">Route Landing</span>
+        <a class="ghost-button" href="/">전체 검색으로 이동</a>
+      </div>
+      <div class="grid landing-grid">
+        <div class="hero-copy">
+          <h1 th:text="${route.routeLabel}">인천 (ICN) -> 후쿠오카 (FUK)</h1>
+          <p class="muted" th:text="${route.description}"></p>
+          <div class="landing-points">
+            <div class="flow-item">
+              <strong>추천 사용자</strong>
+              <p th:text="${route.bestFor}"></p>
+            </div>
+            <div class="flow-item">
+              <strong>추적 시작 시점</strong>
+              <p th:text="${route.bookingWindow}"></p>
+            </div>
+          </div>
+        </div>
+
+        <section class="search-card">
+          <div class="meta">
+            <span class="eyebrow">Quick CTA</span>
+            <h2 th:text="${route.ctaLabel}">후쿠오카 가격 추적 시작</h2>
+            <p class="muted" th:text="${route.heroSummary}"></p>
+          </div>
+          <div class="button-row">
+            <a class="button" th:href="${route.searchUrl}">검색 화면에서 바로 보기</a>
+            <a class="ghost-button" href="/tracking.html">추적 목록 보기</a>
+          </div>
+        </section>
+
+        <section class="example-card">
+          <h2>이 노선 페이지에서 바로 전달해야 하는 정보</h2>
+          <div class="flow-list">
+            <div class="flow-item" th:each="highlight : ${route.highlights}" th:text="${highlight}"></div>
+          </div>
+        </section>
+
+        <section class="results-panel landing-section">
+          <div class="page-top">
+            <div>
+              <h2>이 페이지의 역할</h2>
+              <p class="muted">검색 유입 사용자가 첫 화면에서 바로 행동할 수 있게 구성합니다.</p>
+            </div>
+          </div>
+          <div class="tracking-meta">
+            <div class="tracking-line">
+              <span>핵심 키워드</span>
+              <span th:text="${route.originCityKorean + ' ' + route.destinationCityKorean + ' 항공권'}"></span>
+            </div>
+            <div class="tracking-line">
+              <span>영문 검색 보조</span>
+              <span th:text="${route.destinationCityEnglish + ' flights from Incheon'}"></span>
+            </div>
+            <div class="tracking-line">
+              <span>주요 전환</span>
+              <span>검색 시작 -> 추적 생성 -> 예약처 이동</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="example-card landing-section">
+          <h2>자주 묻는 질문</h2>
+          <div class="flow-list">
+            <div class="flow-item" th:each="question : ${route.faqQuestions}">
+              <strong th:text="${question}"></strong>
+              <p>실시간 가격 변동이 잦은 노선이므로 검색 직후 추적을 켜 두고, 일정이 확정되면 예약처 가격을 다시 확인하는 방식이 유리합니다.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="example-card landing-section">
+          <div class="page-top">
+            <div>
+              <h2>함께 보는 인기 노선</h2>
+              <p class="muted">내부 링크를 늘려 검색 유입 페이지끼리 연결합니다.</p>
+            </div>
+          </div>
+          <div class="route-link-grid">
+            <a class="route-link-card" th:each="related : ${relatedRoutes}" th:href="@{/routes/{slug}(slug=${related.slug})}">
+              <strong th:text="${related.routeLabel}"></strong>
+              <span th:text="${related.ctaLabel}"></span>
+            </a>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

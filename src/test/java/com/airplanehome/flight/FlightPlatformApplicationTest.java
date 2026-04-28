@@ -5,6 +5,7 @@ import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.service.ExchangeRateService;
 import com.airplanehome.flight.service.FlightPrefetchService;
+import com.airplanehome.flight.time.TimeSupport;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -117,13 +118,13 @@ class FlightPlatformApplicationTest {
 
         String body = mockMvc.perform(post("/api/trackings")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"phoneNumber\":\"01012345678\"}"))
+                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"personalDataConsent\":true,\"phoneNumber\":\"01012345678\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.tripType").value("ROUND_TRIP"))
                 .andExpect(jsonPath("$.returnDate").value("2026-06-05"))
                 .andExpect(jsonPath("$.kakaoNotificationEnabled").value(true))
                 .andExpect(jsonPath("$.kakaoOptIn").value(true))
-                .andExpect(jsonPath("$.phoneNumber").value("01012345678"))
+                .andExpect(jsonPath("$.maskedPhoneNumber").value("010****5678"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -153,18 +154,23 @@ class FlightPlatformApplicationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"origin\":\"ICN\",\"destination\":\"SFO\",\"departureDate\":\"2026-06-01\"}"))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.message").value("Flight data is being prepared. Please try again in a few minutes."));
+                .andExpect(jsonPath("$.message").value("항공권 데이터를 준비 중입니다. 잠시 후 다시 시도해 주세요."));
     }
 
     @Test
     void shouldRejectUnsupportedRoute() throws Exception {
         given(flightPrefetchService.isSupported(TripType.ONE_WAY, "ICN", "LAX", LocalDate.of(2026, 6, 1), null)).willReturn(false);
+        LocalDate todayKst = TimeSupport.nowKst().toLocalDate();
+        LocalDate maxSupportedDate = todayKst.plusDays(6);
 
         mockMvc.perform(post("/api/flights/search")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"origin\":\"ICN\",\"destination\":\"LAX\",\"departureDate\":\"2026-06-01\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("This route is supported only for dates from 2026-04-24 to 2026-04-30 (KST)."));
+                .andExpect(jsonPath("$.message").value(String.format(
+                        "이 노선은 %s부터 %s까지의 날짜만 조회할 수 있습니다. (KST 기준)",
+                        todayKst,
+                        maxSupportedDate)));
     }
 
     @Test
@@ -173,7 +179,7 @@ class FlightPlatformApplicationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("returnDate is required for ROUND_TRIP."));
+                .andExpect(jsonPath("$.message").value("왕복 여정은 귀국일을 반드시 입력해야 합니다."));
     }
 
     @Test
@@ -183,7 +189,7 @@ class FlightPlatformApplicationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"icn\",\"destination\":\"nrt\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Cache entry refreshed."));
+                .andExpect(jsonPath("$.message").value("캐시 항목을 새로고침했습니다."));
 
         verify(flightPrefetchService).refresh(TripType.ROUND_TRIP, "ICN", "NRT", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 5));
     }
@@ -193,7 +199,72 @@ class FlightPlatformApplicationTest {
         mockMvc.perform(post("/api/admin/cache/clear")
                         .header("X-Admin-Token", "wrong-token"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid admin token."));
+                .andExpect(jsonPath("$.message").value("관리자 토큰이 올바르지 않습니다."));
+    }
+
+    @Test
+    void shouldExposeKakaoStatus() throws Exception {
+        mockMvc.perform(get("/api/notifications/kakao/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.ready").value(false))
+                .andExpect(jsonPath("$.provider").value("ncp-sens"))
+                .andExpect(jsonPath("$.appBaseUrl").value("https://your-domain.com"))
+                .andExpect(jsonPath("$.missingConfiguration").isArray());
+    }
+
+    @Test
+    void shouldPreviewKakaoPayloadForTracking() throws Exception {
+        given(flightPrefetchService.isSupported(TripType.ROUND_TRIP, "ICN", "NRT", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 5))).willReturn(true);
+        given(flightPrefetchService.getCachedOrFetchFlights(
+                TripType.ROUND_TRIP,
+                "ICN",
+                "NRT",
+                LocalDate.of(2026, 6, 1),
+                LocalDate.of(2026, 6, 5),
+                1)).willReturn(sampleRoundTripFlights());
+
+        String body = mockMvc.perform(post("/api/trackings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"personalDataConsent\":true,\"phoneNumber\":\"01012345678\"}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String id = body.replaceAll(".*\"id\":(\\d+).*", "$1");
+
+        mockMvc.perform(get("/api/notifications/kakao/trackings/{trackingId}/preview", id)
+                        .param("previousPrice", "320000")
+                        .param("currentPrice", "270000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.templateVariables.route").value("ICN → NRT"))
+                .andExpect(jsonPath("$.templateVariables.oldPrice").value("₩320,000"))
+                .andExpect(jsonPath("$.templateVariables.newPrice").value("₩270,000"))
+                .andExpect(jsonPath("$.messages[0].to").value("821012345678"));
+    }
+
+    @Test
+    void shouldRenderSeoLandingPage() throws Exception {
+        mockMvc.perform(get("/routes/icn-fukuoka"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("인천 (ICN) -&gt; 후쿠오카 (FUK)")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("후쿠오카 가격 추적 시작")));
+    }
+
+    @Test
+    void shouldExposeSitemapAndRobots() throws Exception {
+        mockMvc.perform(get("/robots.txt"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("Sitemap: https://your-domain.com/sitemap.xml")));
+
+        mockMvc.perform(get("/sitemap.xml"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("https://your-domain.com/routes/icn-fukuoka")));
     }
 
     private List<FlightPrice> sampleOneWayFlights() {

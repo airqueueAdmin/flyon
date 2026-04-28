@@ -379,6 +379,43 @@ select:focus {
   text-align: center;
 }
 
+.landing-grid {
+  align-items: start;
+}
+
+.landing-hero h1 {
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1;
+}
+
+.landing-points,
+.route-link-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.route-link-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.route-link-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(88, 71, 53, 0.1);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.route-link-card span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.landing-section {
+  padding: 20px;
+}
+
 @media (max-width: 768px) {
   .field-grid {
     grid-template-columns: 1fr;

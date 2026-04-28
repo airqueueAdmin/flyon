@@ -266,6 +266,7 @@ function initSearchPage() {
   populateSelect("#origin", AIRPORT_OPTIONS.origin);
   populateSelect("#destination", AIRPORT_OPTIONS.destination);
   applySearchDateWindow();
+  applySearchParams();
   syncTripTypeFields();
   syncReturnDateConstraint();
   syncKakaoFields();
@@ -453,6 +454,34 @@ function initSearchPage() {
 
     if (searchWindowNote) {
       searchWindowNote.textContent = `검색 가능 기간: ${minValue} ~ ${maxValue}`;
+    }
+  }
+
+  function applySearchParams() {
+    const params = new URLSearchParams(window.location.search);
+    const origin = (params.get("origin") || "").toUpperCase();
+    const destination = (params.get("destination") || "").toUpperCase();
+    const tripType = params.get("tripType");
+    const departureDate = params.get("departureDate");
+    const returnDate = params.get("returnDate");
+
+    if (origin) {
+      qs("#origin").value = origin;
+    }
+    if (destination) {
+      qs("#destination").value = destination;
+    }
+    if (tripType === "ROUND_TRIP") {
+      const input = document.querySelector('input[name="trip-type"][value="ROUND_TRIP"]');
+      if (input) {
+        input.checked = true;
+      }
+    }
+    if (departureDate && departureDate >= departureDateInput.min && departureDate <= departureDateInput.max) {
+      departureDateInput.value = departureDate;
+    }
+    if (returnDate) {
+      returnDateInput.value = returnDate;
     }
   }
 }
