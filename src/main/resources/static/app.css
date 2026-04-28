@@ -88,6 +88,12 @@ p {
   letter-spacing: -0.04em;
 }
 
+.hero-copy h3 {
+  font-size: clamp(1.5rem, 3.2vw, 2.3rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -201,6 +207,9 @@ select:focus {
 .button,
 .ghost-button,
 .inline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   cursor: pointer;
   transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
@@ -230,6 +239,7 @@ select:focus {
 }
 
 .results-panel,
+.results-list,
 .tracking-list {
   display: grid;
   gap: 14px;
@@ -283,6 +293,8 @@ select:focus {
 
 .route {
   font-weight: 700;
+  line-height: 1.35;
+  word-break: keep-all;
 }
 
 .approx-badge {
@@ -311,6 +323,11 @@ select:focus {
   gap: 10px;
   color: var(--muted);
   font-size: 14px;
+}
+
+.meta-line span:last-child,
+.tracking-line span:last-child {
+  text-align: right;
 }
 
 .checkline {
@@ -407,18 +424,114 @@ select:focus {
   background: rgba(255, 255, 255, 0.75);
 }
 
+.route-link-title {
+  display: grid;
+  gap: 4px;
+  line-height: 1.25;
+}
+
+.route-link-title span:first-child::after {
+  content: " ->";
+  color: var(--muted);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
 .route-link-card span {
   color: var(--muted);
   font-size: 14px;
+  line-height: 1.45;
 }
 
 .landing-section {
   padding: 20px;
 }
 
+@media (max-width: 1024px) {
+  .shell {
+    width: min(100% - 24px, 1120px);
+    padding: 16px 0 32px;
+  }
+
+  .hero {
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .search-card,
+  .tracking-panel,
+  .example-card,
+  .results-panel,
+  .modal-card,
+  .landing-section {
+    padding: 18px;
+  }
+
+  .price {
+    min-width: 0;
+    font-size: 1.45rem;
+  }
+
+  .route-link-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(212, 106, 58, 0.18), transparent 34%),
+      radial-gradient(circle at bottom right, rgba(32, 115, 95, 0.14), transparent 28%),
+      linear-gradient(180deg, #f7f0e7 0%, #efe2d2 56%, #f9f5ef 100%);
+  }
+
+  .shell {
+    width: min(100% - 16px, 1120px);
+    padding: 12px 0 24px;
+  }
+
+  .hero {
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .grid {
+    margin-top: 18px;
+    gap: 16px;
+  }
+
   .field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .field-grid.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-top,
+  .page-top {
+    align-items: flex-start;
+  }
+
+  .hero-copy {
+    max-width: none;
+  }
+
+  .hero-copy h3,
+  .landing-hero h1 {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    line-height: 1.12;
+  }
+
+  .search-card,
+  .tracking-panel,
+  .example-card,
+  .results-panel,
+  .modal-card,
+  .landing-section,
+  .result-card,
+  .tracking-card {
+    padding: 16px;
   }
 
   .result-head,
@@ -426,9 +539,110 @@ select:focus {
   .meta-line,
   .tracking-line {
     flex-direction: column;
+    align-items: flex-start;
   }
 
-  .shell {
-    width: min(100% - 20px, 1120px);
+  .meta-line span:last-child,
+  .tracking-line span:last-child {
+    text-align: left;
+  }
+
+  .price {
+    width: 100%;
+    text-align: left;
+    font-size: 1.4rem;
+  }
+
+  .button-row,
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .button,
+  .ghost-button,
+  .inline-button {
+    width: 100%;
+    min-height: 46px;
+  }
+
+  .trip-type-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .trip-type-option {
+    justify-content: center;
+  }
+
+  .checkline {
+    align-items: flex-start;
+  }
+
+  .route-link-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-link-card {
+    padding: 14px;
+  }
+
+  .demo-box {
+    font-size: 13px;
+    line-height: 1.45;
+    overflow-x: auto;
+  }
+
+  .modal {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: min(88vh, 760px);
+    overflow-y: auto;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .results-list,
+  .tracking-list {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+
+  .hero-copy h3,
+  .landing-hero h1 {
+    font-size: 1.45rem;
+  }
+
+  .search-card,
+  .tracking-panel,
+  .example-card,
+  .results-panel,
+  .modal-card,
+  .landing-section,
+  .result-card,
+  .tracking-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .route-link-title {
+    gap: 2px;
+  }
+
+  .route-link-card span,
+  .meta-line,
+  .tracking-line,
+  .inline-note,
+  .status {
+    font-size: 13px;
   }
 }

@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>항공권 가격 추적</title>
+  <title th:text="${pageTitle}">항공권 가격 추적</title>
+  <meta name="description" th:content="${pageDescription}">
+  <link rel="canonical" th:href="${canonicalUrl}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" th:content="${pageTitle}">
+  <meta property="og:description" th:content="${pageDescription}">
+  <meta property="og:url" th:content="${canonicalUrl}">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body data-page="search">

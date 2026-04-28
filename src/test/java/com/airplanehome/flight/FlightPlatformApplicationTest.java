@@ -251,7 +251,7 @@ class FlightPlatformApplicationTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
                         org.hamcrest.Matchers.containsString("인천 (ICN) -&gt; 후쿠오카 (FUK)")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
-                        org.hamcrest.Matchers.containsString("후쿠오카 가격 추적 시작")));
+                        org.hamcrest.Matchers.containsString("후쿠오카 최저가 보기")));
     }
 
     @Test
@@ -265,6 +265,23 @@ class FlightPlatformApplicationTest {
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
                         org.hamcrest.Matchers.containsString("https://your-domain.com/routes/icn-fukuoka")));
+    }
+
+    @Test
+    void shouldRenderHomeAndTrackingWithSeoMeta() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("항공권 가격 추적 | 최저가 비교와 가격 알림")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://your-domain.com/\"")));
+
+        mockMvc.perform(get("/tracking.html"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("name=\"robots\" content=\"noindex,nofollow\"")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://your-domain.com/tracking.html\"")));
     }
 
     private List<FlightPrice> sampleOneWayFlights() {

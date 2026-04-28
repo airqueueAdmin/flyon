@@ -4,7 +4,6 @@ import com.airplanehome.flight.service.SeoRoute;
 import com.airplanehome.flight.service.SeoRouteService;
 import com.airplanehome.flight.service.WebProperties;
 import java.util.List;
-import java.util.Locale;
 import java.util.StringJoiner;
 import javax.persistence.EntityNotFoundException;
 import org.springframework.http.MediaType;
@@ -22,6 +21,22 @@ public class LandingPageController {
     public LandingPageController(SeoRouteService seoRouteService, WebProperties webProperties) {
         this.seoRouteService = seoRouteService;
         this.webProperties = webProperties;
+    }
+
+    @GetMapping("/")
+    public String home(Model model) {
+        model.addAttribute("canonicalUrl", normalizedBaseUrl() + "/");
+        model.addAttribute("pageTitle", "항공권 가격 추적 | 최저가 비교와 가격 알림");
+        model.addAttribute("pageDescription", "인기 노선 최저가를 비교하고 가격 추적을 시작할 수 있는 항공권 검색 페이지입니다.");
+        return "index";
+    }
+
+    @GetMapping("/tracking.html")
+    public String tracking(Model model) {
+        model.addAttribute("canonicalUrl", normalizedBaseUrl() + "/tracking.html");
+        model.addAttribute("pageTitle", "추적 목록 | 저장한 항공권 가격 확인");
+        model.addAttribute("pageDescription", "저장한 항공권 추적 목록과 최근 가격 변동을 확인하는 페이지입니다.");
+        return "tracking";
     }
 
     @GetMapping("/routes/{slug}")
