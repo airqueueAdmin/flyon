@@ -12,6 +12,7 @@
   <meta property="og:url" th:content="${canonicalUrl}">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="/app.css">
+  <th:block th:replace="~{fragments/analytics :: ga}"></th:block>
 </head>
 <body data-page="search">
   <main class="shell">

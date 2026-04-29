@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(dir:*)",
-      "Bash(find . -path */src/main/java/com/airplanehome/flight/*.java -type f)"
+      "Bash(find . -path */src/main/java/com/airplanehome/flight/*.java -type f)",
+      "Bash(claude doctor *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(claude --version)",
+      "Bash(npm list *)",
+      "PowerShell(New-Item *)"
     ]
   }
 }

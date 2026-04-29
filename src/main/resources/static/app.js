@@ -1,3 +1,9 @@
+function trackEvent(name, params) {
+  if (typeof gtag === 'function') {
+    gtag('event', name, params);
+  }
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") {
     return "미설정";
@@ -368,6 +374,12 @@ function initSearchPage() {
 
       status.textContent = "";
       resultCount.textContent = `${flights.length}개의 항공편을 찾았습니다`;
+      trackEvent('flight_search', {
+        origin: payload.origin,
+        destination: payload.destination,
+        trip_type: payload.tripType,
+        result_count: flights.length
+      });
       renderResults(results, flights, (flight) => {
         selectedFlight = flight;
         selectedRoute.textContent = formatRoute(flight.origin, flight.destination);
@@ -426,6 +438,12 @@ function initSearchPage() {
 
       modalStatus.textContent = "추적이 저장되었습니다.";
       modalStatus.className = "status success";
+      trackEvent('tracking_start', {
+        origin: payload.origin,
+        destination: payload.destination,
+        trip_type: payload.tripType,
+        kakao_enabled: payload.kakaoNotificationEnabled
+      });
       trackingLink.href = `/tracking.html?id=${tracking.id}`;
       trackingLink.hidden = false;
       modalForm.reset();
@@ -738,6 +756,11 @@ function renderTrackings(target, trackings, onRemove) {
     dealButton.className = "button";
     dealButton.textContent = "스카이스캐너로 이동";
     dealButton.addEventListener("click", () => {
+      trackEvent('skyscanner_click', {
+        origin: tracking.origin,
+        destination: tracking.destination,
+        trip_type: tracking.tripType
+      });
       window.location.href = buildSkyscannerTrackingUrl(tracking);
     });
     actionRow.appendChild(dealButton);

@@ -27,6 +27,7 @@ app:
     insecure-ssl: ${EXCHANGE_RATE_INSECURE_SSL:false}
   web:
     base-url: ${APP_BASE_URL:https://your-domain.com}
+    ga-id: ${GA_MEASUREMENT_ID:G-CH8DC6J7BZ}
   tracking:
     interval-ms: 300000
   on-demand:
