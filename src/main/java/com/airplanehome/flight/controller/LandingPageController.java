@@ -27,6 +27,7 @@ public class LandingPageController {
     @ModelAttribute
     public void addAnalyticsAttributes(Model model) {
         model.addAttribute("gaId", webProperties.getGaId());
+        model.addAttribute("naverAnalyticsId", webProperties.getNaverAnalyticsId());
     }
 
     @GetMapping("/")

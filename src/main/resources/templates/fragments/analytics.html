@@ -12,5 +12,16 @@
     </script>
   </th:block>
 </th:block>
+
+<th:block th:fragment="naver">
+  <th:block th:if="${naverAnalyticsId != null and !naverAnalyticsId.isEmpty()}">
+    <script src="//wcs.pstatic.net/wcslog.js"></script>
+    <script th:inline="javascript">
+      if (!wcs_add) var wcs_add = {};
+      wcs_add["wa"] = /*[[${naverAnalyticsId}]]*/ '';
+      if (window.wcs) { wcs_do(); }
+    </script>
+  </th:block>
+</th:block>
 </body>
 </html>

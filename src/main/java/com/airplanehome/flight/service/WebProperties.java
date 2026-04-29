@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 public class WebProperties {
     private String baseUrl = "https://your-domain.com";
     private String gaId = "";
+    private String naverAnalyticsId = "";
 
     public String getBaseUrl() {
         return baseUrl;
@@ -23,5 +24,13 @@ public class WebProperties {
 
     public void setGaId(String gaId) {
         this.gaId = gaId;
+    }
+
+    public String getNaverAnalyticsId() {
+        return naverAnalyticsId;
+    }
+
+    public void setNaverAnalyticsId(String naverAnalyticsId) {
+        this.naverAnalyticsId = naverAnalyticsId;
     }
 }
