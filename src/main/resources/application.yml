@@ -26,7 +26,7 @@ app:
     default-usd-to-krw-rate: 1300
     insecure-ssl: ${EXCHANGE_RATE_INSECURE_SSL:false}
   web:
-    base-url: ${APP_BASE_URL:https://your-domain.com}
+    base-url: ${APP_BASE_URL:https://flight-platform.onrender.com}
     ga-id: ${GA_MEASUREMENT_ID:G-CH8DC6J7BZ}
     naver-analytics-id: ${NAVER_ANALYTICS_ID:9c84bd12437678}
   tracking:

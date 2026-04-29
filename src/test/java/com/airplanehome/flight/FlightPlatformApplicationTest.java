@@ -209,7 +209,7 @@ class FlightPlatformApplicationTest {
                 .andExpect(jsonPath("$.enabled").value(true))
                 .andExpect(jsonPath("$.ready").value(false))
                 .andExpect(jsonPath("$.provider").value("ncp-sens"))
-                .andExpect(jsonPath("$.appBaseUrl").value("https://your-domain.com"))
+                .andExpect(jsonPath("$.appBaseUrl").value("https://flight-platform.onrender.com"))
                 .andExpect(jsonPath("$.missingConfiguration").isArray());
     }
 
@@ -259,12 +259,12 @@ class FlightPlatformApplicationTest {
         mockMvc.perform(get("/robots.txt"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
-                        org.hamcrest.Matchers.containsString("Sitemap: https://your-domain.com/sitemap.xml")));
+                        org.hamcrest.Matchers.containsString("Sitemap: https://flight-platform.onrender.com/sitemap.xml")));
 
         mockMvc.perform(get("/sitemap.xml"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
-                        org.hamcrest.Matchers.containsString("https://your-domain.com/routes/icn-fukuoka")));
+                        org.hamcrest.Matchers.containsString("https://flight-platform.onrender.com/routes/icn-fukuoka")));
     }
 
     @Test
@@ -274,14 +274,14 @@ class FlightPlatformApplicationTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
                         org.hamcrest.Matchers.containsString("항공권 가격 추적 | 최저가 비교와 가격 알림")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
-                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://your-domain.com/\"")));
+                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://flight-platform.onrender.com/\"")));
 
         mockMvc.perform(get("/tracking.html"))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
                         org.hamcrest.Matchers.containsString("name=\"robots\" content=\"noindex,nofollow\"")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
-                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://your-domain.com/tracking.html\"")));
+                        org.hamcrest.Matchers.containsString("rel=\"canonical\" href=\"https://flight-platform.onrender.com/tracking.html\"")));
     }
 
     private List<FlightPrice> sampleOneWayFlights() {
