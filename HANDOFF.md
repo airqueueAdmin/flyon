@@ -574,31 +574,32 @@ Kakao (required only if Kakao AlimTalk is wanted):
 - `KAKAO_MIN_PRICE_DROP_KRW` (default: 10000)
 - `KAKAO_MIN_PRICE_DROP_PERCENT` (default: 5)
 
-## Deployment Prep
+## Deployment
 
-Deployment prep files already exist:
+Service is live at: https://flight-platform.onrender.com
 
-- [render.yaml](render.yaml)
-- [DEPLOY_RENDER_NEON.md](DEPLOY_RENDER_NEON.md)
+- Render (free plan) + Neon PostgreSQL
+- `render.yaml` includes:
+  - `DUFFEL_ENABLED: "true"` — Duffel is on by default
+  - `KAKAO_ENABLED: "false"` — Kakao disabled until credentials are provisioned
+  - secret placeholders for `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `RAPIDAPI_KEY`, `DUFFEL_API_KEY`, `APP_BASE_URL`, `ADMIN_API_TOKEN`
 
-`render.yaml` now includes:
+### UptimeRobot keep-alive
 
-- `DUFFEL_ENABLED: "true"` — Duffel is on by default in Render deploys
-- `KAKAO_ENABLED: "false"` — Kakao is disabled by default until credentials are provisioned
-- secret placeholders for `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `RAPIDAPI_KEY`, `DUFFEL_API_KEY`, `APP_BASE_URL`, `ADMIN_API_TOKEN`
+Render free plan spins down after 15 minutes of inactivity (cold start ~30–60s).
+UptimeRobot (free) pings `/health` every 5 minutes to prevent spin-down.
 
-`DEPLOY_RENDER_NEON.md` is updated for GitLab-based Render deployment and Neon SSL configuration.
-
-Render/Neon deployment config is prepared in-repo, but actual live deployment still requires platform-side setup in Render and Neon.
+- Monitor URL: `https://flight-platform.onrender.com/health`
+- Interval: 5 minutes
+- Result: sidestepping the 15-minute idle timer; effectively zero downtime
 
 ## Recommended Next Steps
 
 1. Set `ADMIN_API_TOKEN` in the actual runtime environment before using admin cache endpoints
 2. Verify and tune Kakao notification thresholds (`KAKAO_MIN_PRICE_DROP_KRW`, `KAKAO_MIN_PRICE_DROP_PERCENT`) for production behavior
-3. Finish the actual Render + Neon platform-side setup using the prepared `render.yaml` and deployment doc
-4. Rotate `.env.local` Duffel token if it expires
-5. Provision real Kakao env vars in the target runtime before enabling `KAKAO_ENABLED`
+3. Rotate `.env.local` Duffel token if it expires
+4. Provision real Kakao env vars in the target runtime before enabling `KAKAO_ENABLED`
 
 ## Suggested Prompt For The Next Agent
 
-> Read `HANDOFF.md` first. This Spring Boot flight service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, built-in static UI (`/` and `/tracking.html`), dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, admin cache endpoints (`/api/admin/cache/evict`, `/api/admin/cache/refresh`, `/api/admin/cache/clear`) protected by `X-Admin-Token` / `ADMIN_API_TOKEN`, Kakao AlimTalk notifications via NCP SENS with threshold + duplicate suppression in `PriceTrackerScheduler`, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.
+> Read `HANDOFF.md` first. This Spring Boot flight service is live at https://flight-platform.onrender.com (Render free plan + Neon PostgreSQL). UptimeRobot pings `/health` every 5 minutes to prevent Render's 15-minute idle spin-down. The service supports cache-first + on-demand fetch, RapidAPI primary, Duffel fallback, scheduler prewarming (24 routes), local PostgreSQL via Docker Compose, built-in static UI (`/` and `/tracking.html`), dedicated SSL-relaxed RestTemplates for external APIs, corrected Duffel airline mapping, admin cache endpoints (`/api/admin/cache/evict`, `/api/admin/cache/refresh`, `/api/admin/cache/clear`) protected by `X-Admin-Token` / `ADMIN_API_TOKEN`, Kakao AlimTalk notifications via NCP SENS with threshold + duplicate suppression in `PriceTrackerScheduler`, KST timestamp serialization, and per-hour RapidAPI rate limiting with circuit breaker. Continue from the current repo state without reverting changes.
