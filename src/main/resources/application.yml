@@ -23,7 +23,7 @@ app:
   exchange-rate:
     api-url: https://api.exchangerate-api.com/v4/latest/USD
     cache-duration-minutes: 60
-    default-usd-to-krw-rate: 1300
+    default-usd-to-krw-rate: 1450
     insecure-ssl: ${EXCHANGE_RATE_INSECURE_SSL:false}
   web:
     base-url: ${APP_BASE_URL:https://flight-platform.onrender.com}

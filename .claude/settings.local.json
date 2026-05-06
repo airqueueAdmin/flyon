@@ -7,7 +7,15 @@
       "Bash(echo \"exit: $?\")",
       "Bash(claude --version)",
       "Bash(npm list *)",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(Select-String -Path \"D:\\\\airplane-home\\\\rapidapi-live.out.log\" -Pattern \"exchange|Exchange|rate|Rate\")",
+      "Bash(Select-Object -Last 20)",
+      "Bash(Format-List)",
+      "Read(//mnt/d/**)",
+      "Bash(mvn test *)",
+      "Bash(mvn --version)",
+      "PowerShell(java *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\" -Directory | Where-Object { $_.Name -match \"java|jdk|jre\" -or $_.Name -match \"Eclipse|Adoptium|Corretto|Temurin|Zulu\" } | Select-Object FullName)"
     ]
   }
 }
