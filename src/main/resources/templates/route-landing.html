@@ -56,29 +56,6 @@
           </div>
         </section>
 
-        <section class="results-panel landing-section">
-          <div class="page-top">
-            <div>
-              <h2>빠르게 확인할 정보</h2>
-              <p class="muted">노선명, 검색 키워드, 다음 행동을 한 번에 볼 수 있습니다.</p>
-            </div>
-          </div>
-          <div class="tracking-meta">
-            <div class="tracking-line">
-              <span>많이 찾는 검색어</span>
-              <span th:text="${route.originCityKorean + ' ' + route.destinationCityKorean + ' 항공권'}"></span>
-            </div>
-            <div class="tracking-line">
-              <span>영문 검색어</span>
-              <span th:text="${route.destinationCityEnglish + ' flights from Incheon'}"></span>
-            </div>
-            <div class="tracking-line">
-              <span>이용 순서</span>
-              <span>가격 확인 -> 추적 시작 -> 예약처 이동</span>
-            </div>
-          </div>
-        </section>
-
         <section class="example-card landing-section">
           <h2>자주 묻는 질문</h2>
           <div class="flow-list">

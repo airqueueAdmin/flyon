@@ -463,8 +463,9 @@ select:focus {
 }
 
 .landing-hero h1 {
-  font-size: clamp(2rem, 4vw, 3.4rem);
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .landing-points,
@@ -769,6 +770,7 @@ select:focus {
   .hero-copy h3,
   .landing-hero h1 {
     font-size: 1.45rem;
+    white-space: normal;
   }
 
   .search-hero-title {

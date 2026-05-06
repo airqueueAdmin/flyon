@@ -1,5 +1,24 @@
+# Secrets / local environment
 .env.local
+.env.*.local
+
+# Local config overrides (may contain secrets)
+application-local.yml
+application-local.properties
+
+# Personal documents
+portfolio.txt
+*.md
+
+# IDE
 .idea/
+*.iml
+
+# Claude Code
 .claude/
+
+# Build output
 target/
+
+# Logs
 *.log
