@@ -99,7 +99,7 @@ public class AdminCacheController {
     }
 
     static final class AdminUnauthorizedException extends RuntimeException {
-        private AdminUnauthorizedException(String message) {
+        AdminUnauthorizedException(String message) {
             super(message);
         }
     }

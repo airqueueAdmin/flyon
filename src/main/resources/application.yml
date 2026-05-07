@@ -44,9 +44,9 @@ app:
   kakao:
     enabled: ${KAKAO_ENABLED:true}
     provider: ${KAKAO_PROVIDER:kakao-message-api}
-    rest-api-key: ${KAKAO_REST_API_KEY:}
+    rest-api-key: ${KAKAO_REST_API_KEY:${KAKAO_API_KEY:}}
     client-secret: ${KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:${APP_BASE_URL:http://localhost:8080}/kakao-callback.html}
     api-key: ${KAKAO_API_KEY:}
     api-secret: ${KAKAO_API_SECRET:}
     sender-number: ${KAKAO_SENDER_NUMBER:}

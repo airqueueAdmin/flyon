@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -88,6 +89,7 @@ public class KakaoAuthService {
         status.put("ready", Boolean.valueOf(properties.isReady()));
         status.put("provider", properties.getProvider());
         status.put("redirectUri", properties.getRedirectUri());
+        status.put("clientSecretConfigured", Boolean.valueOf(StringUtils.hasText(properties.getClientSecret())));
         status.put("missingConfiguration", properties.getMissingRequiredFields());
         return status;
     }
@@ -166,8 +168,19 @@ public class KakaoAuthService {
             }
             return body;
         } catch (RestClientException ex) {
-            throw new IllegalStateException("카카오 API 호출에 실패했습니다. " + ex.getMessage(), ex);
+            throw new IllegalStateException(resolveKakaoApiFailureMessage(ex), ex);
         }
+    }
+
+    private String resolveKakaoApiFailureMessage(RestClientException ex) {
+        if (ex instanceof HttpStatusCodeException) {
+            String responseBody = ((HttpStatusCodeException) ex).getResponseBodyAsString();
+            if (responseBody != null && responseBody.contains("KOE010")) {
+                return "카카오 API 호출에 실패했습니다. 카카오 앱의 Client Secret 기능이 켜져 있으면 "
+                        + "KAKAO_CLIENT_SECRET에 REST API 키의 Client Secret 값을 설정해야 합니다.";
+            }
+        }
+        return "카카오 API 호출에 실패했습니다. " + ex.getMessage();
     }
 
     private void addClientSecret(MultiValueMap<String, String> form) {
