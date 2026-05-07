@@ -514,6 +514,33 @@ select:focus {
   line-height: 1.45;
 }
 
+.site-footer {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto 32px;
+}
+
+.site-footer-card {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 251, 245, 0.72);
+  color: var(--muted);
+  box-shadow: 0 12px 28px rgba(74, 45, 22, 0.08);
+}
+
+.site-footer-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.site-footer-line {
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
 .landing-section {
   padding: 20px;
 }
@@ -522,6 +549,11 @@ select:focus {
   .shell {
     width: min(100% - 24px, 1120px);
     padding: 16px 0 32px;
+  }
+
+  .site-footer {
+    width: min(100% - 24px, 1120px);
+    margin-bottom: 24px;
   }
 
   .hero {
@@ -559,6 +591,11 @@ select:focus {
   .shell {
     width: min(100% - 16px, 1120px);
     padding: 12px 0 24px;
+  }
+
+  .site-footer {
+    width: min(100% - 16px, 1120px);
+    margin-bottom: 20px;
   }
 
   .hero {
@@ -829,5 +866,15 @@ select:focus {
 
   .message-bubble {
     padding: 14px;
+  }
+
+  .site-footer-card {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .site-footer-line {
+    font-size: 12px;
+    line-height: 1.55;
   }
 }
