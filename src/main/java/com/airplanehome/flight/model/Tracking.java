@@ -47,6 +47,17 @@ public class Tracking {
     private Boolean kakaoNotificationEnabled;
     @JsonIgnore
     private String phoneNumber;
+    @JsonIgnore
+    private Long kakaoUserId;
+    @JsonIgnore
+    private String kakaoAccessToken;
+    @JsonIgnore
+    private String kakaoRefreshToken;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime kakaoAccessTokenExpiresAt;
+    @JsonSerialize(using = KstLocalDateTimeSerializer.class)
+    private LocalDateTime kakaoRefreshTokenExpiresAt;
+    private String kakaoNickname;
     private Boolean kakaoOptIn;
     private Boolean personalDataConsent;
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
@@ -237,6 +248,54 @@ public class Tracking {
         return phoneNumber.substring(0, 3) + "****" + phoneNumber.substring(phoneNumber.length() - 4);
     }
 
+    public Long getKakaoUserId() {
+        return kakaoUserId;
+    }
+
+    public void setKakaoUserId(Long kakaoUserId) {
+        this.kakaoUserId = kakaoUserId;
+    }
+
+    public String getKakaoAccessToken() {
+        return kakaoAccessToken;
+    }
+
+    public void setKakaoAccessToken(String kakaoAccessToken) {
+        this.kakaoAccessToken = kakaoAccessToken;
+    }
+
+    public String getKakaoRefreshToken() {
+        return kakaoRefreshToken;
+    }
+
+    public void setKakaoRefreshToken(String kakaoRefreshToken) {
+        this.kakaoRefreshToken = kakaoRefreshToken;
+    }
+
+    public LocalDateTime getKakaoAccessTokenExpiresAt() {
+        return kakaoAccessTokenExpiresAt;
+    }
+
+    public void setKakaoAccessTokenExpiresAt(LocalDateTime kakaoAccessTokenExpiresAt) {
+        this.kakaoAccessTokenExpiresAt = kakaoAccessTokenExpiresAt;
+    }
+
+    public LocalDateTime getKakaoRefreshTokenExpiresAt() {
+        return kakaoRefreshTokenExpiresAt;
+    }
+
+    public void setKakaoRefreshTokenExpiresAt(LocalDateTime kakaoRefreshTokenExpiresAt) {
+        this.kakaoRefreshTokenExpiresAt = kakaoRefreshTokenExpiresAt;
+    }
+
+    public String getKakaoNickname() {
+        return kakaoNickname;
+    }
+
+    public void setKakaoNickname(String kakaoNickname) {
+        this.kakaoNickname = kakaoNickname;
+    }
+
     public Boolean getKakaoOptIn() {
         return kakaoOptIn;
     }
@@ -259,6 +318,10 @@ public class Tracking {
 
     public void setPersonalDataConsentAt(LocalDateTime personalDataConsentAt) {
         this.personalDataConsentAt = personalDataConsentAt;
+    }
+
+    public boolean isKakaoLinked() {
+        return kakaoUserId != null;
     }
 
     public LocalDateTime getKakaoOptInAt() {

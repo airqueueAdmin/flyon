@@ -11,7 +11,10 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "app.kakao")
 public class KakaoNotificationProperties {
     private boolean enabled = false;
-    private String provider = "ncp-sens";
+    private String provider = "kakao-message-api";
+    private String restApiKey;
+    private String clientSecret;
+    private String redirectUri;
     private String apiKey;
     private String apiSecret;
     private String senderNumber;
@@ -35,6 +38,30 @@ public class KakaoNotificationProperties {
 
     public void setProvider(String provider) {
         this.provider = provider;
+    }
+
+    public String getRestApiKey() {
+        return restApiKey;
+    }
+
+    public void setRestApiKey(String restApiKey) {
+        this.restApiKey = restApiKey;
+    }
+
+    public String getClientSecret() {
+        return clientSecret;
+    }
+
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret;
+    }
+
+    public String getRedirectUri() {
+        return redirectUri;
+    }
+
+    public void setRedirectUri(String redirectUri) {
+        this.redirectUri = redirectUri;
     }
 
     public String getApiKey() {
@@ -107,16 +134,12 @@ public class KakaoNotificationProperties {
             missingFields.add("app.kakao.provider");
             return missingFields;
         }
-        if (!"ncp-sens".equalsIgnoreCase(provider)) {
+        if (!"kakao-message-api".equalsIgnoreCase(provider)) {
             missingFields.add("app.kakao.provider(unsupported:" + provider + ")");
             return missingFields;
         }
-        addIfMissing(missingFields, "app.kakao.api-key", apiKey);
-        addIfMissing(missingFields, "app.kakao.api-secret", apiSecret);
-        addIfMissing(missingFields, "app.kakao.sender-number", senderNumber);
-        addIfMissing(missingFields, "app.kakao.template-code", templateCode);
-        addIfMissing(missingFields, "app.kakao.service-id", serviceId);
-        addIfMissing(missingFields, "app.kakao.plus-friend-id", plusFriendId);
+        addIfMissing(missingFields, "app.kakao.rest-api-key", restApiKey);
+        addIfMissing(missingFields, "app.kakao.redirect-uri", redirectUri);
         return missingFields;
     }
 

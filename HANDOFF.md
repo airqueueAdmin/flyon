@@ -13,6 +13,332 @@ This repo is a Spring Boot flight-price service with:
 - Docker-based deployment prep for Render
 - Kakao AlimTalk notifications via NCP SENS
 
+## Active WIP: Kakao Login Migration
+
+Current user direction changed:
+
+- do not continue broad autonomous refactors
+- proceed step-by-step to avoid hallucinated implementation
+- keep `HANDOFF.md` updated at each stop point
+
+Current migration target:
+
+- remove phone-number-based NCP SENS AlimTalk dependency
+- move to Kakao Login + Kakao Talk Message API (`나에게 메시지 보내기`)
+- keep scheduler-driven price-drop notifications
+
+Important current status:
+
+- this migration is **not finished**
+- the repo contains **partial unverified edits**
+- the app currently **does compile**
+- do **not** assume tests pass yet
+- next work should start by reviewing the exact files listed below before any further edits
+
+### Partial edits already applied
+
+New files added:
+
+- [src/main/java/com/airplanehome/flight/model/KakaoAuthConnection.java](src/main/java/com/airplanehome/flight/model/KakaoAuthConnection.java)
+- [src/main/java/com/airplanehome/flight/repository/KakaoAuthConnectionRepository.java](src/main/java/com/airplanehome/flight/repository/KakaoAuthConnectionRepository.java)
+- [src/main/java/com/airplanehome/flight/service/KakaoAuthService.java](src/main/java/com/airplanehome/flight/service/KakaoAuthService.java)
+
+Files partially changed:
+
+- [src/main/java/com/airplanehome/flight/service/KakaoNotificationProperties.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationProperties.java)
+  - changed from NCP SENS-style config to Kakao Login/message-API-style config
+  - now expects:
+    - `app.kakao.provider = kakao-message-api`
+    - `app.kakao.rest-api-key`
+    - `app.kakao.client-secret` (optional depending on Kakao app settings)
+    - `app.kakao.redirect-uri`
+- [src/main/java/com/airplanehome/flight/model/Tracking.java](src/main/java/com/airplanehome/flight/model/Tracking.java)
+  - removed phone-number-centric fields from active code path
+  - added token-related fields:
+    - `kakaoUserId`
+    - `kakaoAccessToken`
+    - `kakaoRefreshToken`
+    - `kakaoAccessTokenExpiresAt`
+    - `kakaoRefreshTokenExpiresAt`
+    - `kakaoNickname`
+  - removed active getters/setters for:
+    - `phoneNumber`
+    - `personalDataConsent`
+    - `personalDataConsentAt`
+- [src/main/java/com/airplanehome/flight/controller/dto/TrackingRequest.java](src/main/java/com/airplanehome/flight/controller/dto/TrackingRequest.java)
+  - removed active `phoneNumber` / `personalDataConsent`
+  - added `kakaoConnectionId`
+
+### What is still incomplete
+
+The following parts are **not migrated yet** and likely still reference the old NCP SENS model:
+
+- [src/main/java/com/airplanehome/flight/service/FlightService.java](src/main/java/com/airplanehome/flight/service/FlightService.java)
+- [src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java)
+- [src/main/java/com/airplanehome/flight/controller/NotificationController.java](src/main/java/com/airplanehome/flight/controller/NotificationController.java)
+- [src/main/java/com/airplanehome/flight/scheduler/PriceTrackerScheduler.java](src/main/java/com/airplanehome/flight/scheduler/PriceTrackerScheduler.java)
+- [src/main/resources/application.yml](src/main/resources/application.yml)
+- [src/main/resources/static/app.js](src/main/resources/static/app.js)
+- [src/main/resources/static/index.html](src/main/resources/static/index.html)
+- [src/main/resources/static/tracking.html](src/main/resources/static/tracking.html)
+- [src/main/resources/templates/index.html](src/main/resources/templates/index.html)
+- [src/main/resources/templates/tracking.html](src/main/resources/templates/tracking.html)
+- tests under:
+  - [src/test/java/com/airplanehome/flight/FlightPlatformApplicationTest.java](src/test/java/com/airplanehome/flight/FlightPlatformApplicationTest.java)
+  - [src/test/java/com/airplanehome/flight/scheduler/PriceTrackerSchedulerTest.java](src/test/java/com/airplanehome/flight/scheduler/PriceTrackerSchedulerTest.java)
+
+### Recommended next step sequence
+
+1. Freeze scope and implement only backend auth endpoints first
+2. Make the code compile again before touching UI copy
+3. Replace `KakaoNotificationService` transport from NCP SENS to Kakao Message API
+4. Update `FlightService` validation/storage to use `kakaoConnectionId`
+5. Update scheduler and tests
+6. Only then update browser UI/login popup flow
+
+### Step 1 status
+
+Step 1 is now complete.
+
+Added backend auth endpoints in:
+
+- [src/main/java/com/airplanehome/flight/controller/NotificationController.java](src/main/java/com/airplanehome/flight/controller/NotificationController.java)
+
+Endpoints added:
+
+- `GET /api/notifications/kakao/auth/status`
+- `GET /api/notifications/kakao/auth/start`
+- `GET /api/notifications/kakao/auth/callback?code=...&state=...`
+- `GET /api/notifications/kakao/auth/connections/{connectionId}`
+
+Support code added:
+
+- [src/main/java/com/airplanehome/flight/service/KakaoAuthService.java](src/main/java/com/airplanehome/flight/service/KakaoAuthService.java)
+- [src/main/java/com/airplanehome/flight/model/KakaoAuthConnection.java](src/main/java/com/airplanehome/flight/model/KakaoAuthConnection.java)
+- [src/main/java/com/airplanehome/flight/repository/KakaoAuthConnectionRepository.java](src/main/java/com/airplanehome/flight/repository/KakaoAuthConnectionRepository.java)
+
+Compatibility stabilization:
+
+- transitional compatibility fields/getters were restored in `Tracking`, `TrackingRequest`, and `KakaoNotificationProperties`
+- this was done only to keep the current code compiling while migration proceeds step-by-step
+
+Verification completed:
+
+- `mvn -q -DskipTests package` passed on `2026-05-07`
+
+### Step 2 status
+
+Step 2 is complete.
+
+Meaning:
+
+- backend auth endpoint work from step 1 was stabilized enough to restore a compileable application state
+- UI copy and browser login flow are still untouched
+- old NCP SENS notification path is still present and still needs replacement in later steps
+
+Verification repeated:
+
+- `mvn -q -DskipTests package` passed again on `2026-05-07`
+
+### Step 3 status
+
+Step 3 is complete.
+
+Changed file:
+
+- [src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java](src/main/java/com/airplanehome/flight/service/KakaoNotificationService.java)
+
+What changed:
+
+- outbound transport was switched from NCP SENS AlimTalk HTTP API to Kakao Talk Message API
+- service now posts to:
+  - `POST https://kapi.kakao.com/v2/api/talk/memo/default/send`
+- auth now uses bearer access token from `Tracking.kakaoAccessToken`
+- `KakaoAuthService.refreshTrackingTokensIfNeeded(...)` is called before send attempt
+- provider expectation inside the sender is now:
+  - `app.kakao.provider = kakao-message-api`
+- preview/example payload shape is no longer NCP SENS payload shape
+- preview/example now build Kakao `template_object`-style data using a text template plus web buttons
+
+Important limitations after step 3:
+
+- `FlightService` still validates and stores the old phone-number / consent path
+- scheduler caller still uses the old method name `sendAlimTalk(...)`, but the internal transport is now Kakao Message API
+- tests are not updated yet
+- UI still presents old phone-number / privacy copy
+
+Verification completed:
+
+- `mvn -q -DskipTests package` passed on `2026-05-07`
+
+### Step 4 status
+
+Step 4 is complete.
+
+Changed file:
+
+- [src/main/java/com/airplanehome/flight/service/FlightService.java](src/main/java/com/airplanehome/flight/service/FlightService.java)
+
+What changed:
+
+- `FlightService` now depends on `KakaoAuthService`
+- when `kakaoNotificationEnabled = true`, tracking creation now requires `kakaoConnectionId`
+- `createTracking(...)` now loads the saved auth connection and copies these fields into `Tracking`:
+  - `kakaoUserId`
+  - `kakaoAccessToken`
+  - `kakaoRefreshToken`
+  - `kakaoAccessTokenExpiresAt`
+  - `kakaoRefreshTokenExpiresAt`
+  - `kakaoNickname`
+- phone number is no longer stored for new Kakao-enabled trackings
+- old personal-data consent flags are no longer part of active validation for Kakao-enabled trackings
+- price-drop candidate generation now checks:
+  - `kakaoNotificationEnabled`
+  - `kakaoOptIn`
+  - `tracking.isKakaoLinked()`
+  - non-empty `kakaoAccessToken`
+
+Important limitations after step 4:
+
+- scheduler/tests/UI are still not aligned with the new connection-based flow
+- `TrackingRequest` and `Tracking` still contain some compatibility fields only to avoid breaking unrelated code during migration
+- browser flow still does not populate `kakaoConnectionId`
+
+Verification completed:
+
+- `mvn -q -DskipTests package` passed on `2026-05-07`
+
+### Step 5 status
+
+Step 5 is complete.
+
+Changed files:
+
+- [src/test/java/com/airplanehome/flight/scheduler/PriceTrackerSchedulerTest.java](src/test/java/com/airplanehome/flight/scheduler/PriceTrackerSchedulerTest.java)
+- [src/test/java/com/airplanehome/flight/FlightPlatformApplicationTest.java](src/test/java/com/airplanehome/flight/FlightPlatformApplicationTest.java)
+
+What changed:
+
+- scheduler unit tests were aligned to the connection-based Kakao flow
+- test `Tracking` fixtures now use:
+  - `kakaoUserId`
+  - `kakaoAccessToken`
+  instead of phone number assumptions
+- integration tests now mock `KakaoAuthService`
+- Kakao-enabled tracking creation tests now send `kakaoConnectionId`
+- preview assertions were updated from NCP SENS payload shape to Kakao `template_object` payload shape
+- brittle response-body id extraction regex was replaced with stable matcher-based extraction
+
+Verification completed:
+
+- `mvn -q test` passed on `2026-05-07`
+
+State after step 5:
+
+- backend auth endpoints exist
+- sender transport uses Kakao Message API
+- `FlightService` stores connection-derived Kakao credentials on tracking
+- scheduler/tests are aligned with the new backend flow
+- browser UI is still the main remaining migration area
+
+### Step 6 status
+
+Step 6 is complete.
+
+Changed files:
+
+- [src/main/resources/static/app.js](src/main/resources/static/app.js)
+- [src/main/resources/static/index.html](src/main/resources/static/index.html)
+- [src/main/resources/templates/index.html](src/main/resources/templates/index.html)
+- [src/main/resources/static/tracking.html](src/main/resources/static/tracking.html)
+- [src/main/resources/templates/tracking.html](src/main/resources/templates/tracking.html)
+- [src/main/resources/static/kakao-callback.html](src/main/resources/static/kakao-callback.html)
+
+What changed:
+
+- modal UI no longer asks for phone number
+- old privacy / third-party-sharing copy for NCP SENS was removed from the active Kakao flow
+- Kakao alert setup now uses:
+  - enable checkbox
+  - Kakao login connect button
+  - opt-in checkbox
+- popup callback flow was added:
+  - browser calls `/api/notifications/kakao/auth/start`
+  - opens Kakao auth popup
+  - Kakao redirects to `/kakao-callback.html`
+  - callback page exchanges `code` through backend callback API
+  - callback page sends `connectionId` back with `postMessage`
+- browser stores the Kakao connection in localStorage
+- tracking creation now sends `kakaoConnectionId`
+- tracking page copy now describes Kakao login-based alerts
+- notification example parsing in JS was updated to the Kakao `template_object` payload shape
+
+Operational note:
+
+- Kakao Developers app `redirect_uri` must match the frontend callback page, typically:
+  - `/kakao-callback.html`
+- `app.kakao.redirect-uri` must point to that same absolute URL in the running environment
+
+Verification completed:
+
+- `mvn -q test` passed on `2026-05-07`
+
+Migration summary:
+
+- backend auth endpoints: done
+- compile stabilization: done
+- sender transport swap: done
+- tracking storage validation swap: done
+- scheduler/tests alignment: done
+- browser login flow + submit wiring: done
+
+### Kakao deployment checklist
+
+Before enabling Kakao notifications in a real environment, configure both Kakao Developers and server env vars.
+
+Kakao Developers setup:
+
+- create or reuse a Kakao Developers application
+- enable `카카오 로그인`
+- register Redirect URI:
+  - `https://your-domain/kakao-callback.html`
+- enable the Kakao Talk message permission required for sending messages to the logged-in user
+- confirm the app `REST API 키`
+- if client secret protection is enabled in Kakao Developers, also confirm `Client Secret`
+
+Server environment variables:
+
+- `KAKAO_ENABLED=true`
+- `KAKAO_PROVIDER=kakao-message-api`
+- `KAKAO_REST_API_KEY=<Kakao REST API key>`
+- `KAKAO_CLIENT_SECRET=<set if Kakao app uses client secret>`
+- `KAKAO_REDIRECT_URI=https://your-domain/kakao-callback.html`
+- `APP_BASE_URL=https://your-domain`
+
+Meaning in current code:
+
+- `KAKAO_REST_API_KEY` and `KAKAO_REDIRECT_URI` are effectively required
+- `KAKAO_CLIENT_SECRET` is optional unless enforced by the Kakao app settings
+- `APP_BASE_URL` is used when building links in Kakao message buttons
+
+Recommended production verification order:
+
+1. apply env vars in the deployment platform
+2. redeploy the app
+3. call `GET /api/notifications/kakao/auth/status`
+4. confirm:
+   - `ready=true`
+   - `provider=kakao-message-api`
+5. open the site in a browser and complete Kakao login connection
+6. create a tracking with Kakao notifications enabled
+7. verify the stored connection flow and actual message delivery
+
+Important caution:
+
+- Kakao Developers Redirect URI and `KAKAO_REDIRECT_URI` must match exactly
+- current implementation is not business AlimTalk; it is login-based `나에게 메시지 보내기`
+- each user must connect Kakao login individually before receiving notifications
+
 The current working directory used during setup was `D:\airplane-home`.
 
 ## Current Runtime Architecture

@@ -26,6 +26,14 @@ services:
         sync: false
       - key: KAKAO_ENABLED
         value: "false"
+      - key: KAKAO_PROVIDER
+        value: kakao-message-api
+      - key: KAKAO_REST_API_KEY
+        sync: false
+      - key: KAKAO_CLIENT_SECRET
+        sync: false
+      - key: KAKAO_REDIRECT_URI
+        sync: false
       - key: DUFFEL_INSECURE_SSL
         value: "false"
       - key: EXCHANGE_RATE_INSECURE_SSL

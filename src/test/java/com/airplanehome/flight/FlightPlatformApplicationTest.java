@@ -2,14 +2,18 @@ package com.airplanehome.flight;
 
 import com.airplanehome.flight.client.RapidApiClient;
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.KakaoAuthConnection;
 import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.service.ExchangeRateService;
 import com.airplanehome.flight.service.FlightPrefetchService;
+import com.airplanehome.flight.service.KakaoAuthService;
 import com.airplanehome.flight.time.TimeSupport;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -46,6 +50,9 @@ class FlightPlatformApplicationTest {
 
     @MockBean
     private FlightPrefetchService flightPrefetchService;
+
+    @MockBean
+    private KakaoAuthService kakaoAuthService;
 
     @Test
     void shouldSearchFlightPrice() throws Exception {
@@ -107,6 +114,7 @@ class FlightPlatformApplicationTest {
 
     @Test
     void shouldListAndDeleteTrackings() throws Exception {
+        given(kakaoAuthService.getConnection("test-connection")).willReturn(sampleKakaoConnection());
         given(flightPrefetchService.isSupported(TripType.ROUND_TRIP, "ICN", "NRT", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 5))).willReturn(true);
         given(flightPrefetchService.getCachedOrFetchFlights(
                 TripType.ROUND_TRIP,
@@ -118,18 +126,18 @@ class FlightPlatformApplicationTest {
 
         String body = mockMvc.perform(post("/api/trackings")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"personalDataConsent\":true,\"phoneNumber\":\"01012345678\"}"))
+                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"kakaoConnectionId\":\"test-connection\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.tripType").value("ROUND_TRIP"))
                 .andExpect(jsonPath("$.returnDate").value("2026-06-05"))
                 .andExpect(jsonPath("$.kakaoNotificationEnabled").value(true))
                 .andExpect(jsonPath("$.kakaoOptIn").value(true))
-                .andExpect(jsonPath("$.maskedPhoneNumber").value("010****5678"))
+                .andExpect(jsonPath("$.kakaoNickname").value("테스트 사용자"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
-        String id = body.replaceAll(".*\"id\":(\\d+).*", "$1");
+        String id = extractId(body);
 
         mockMvc.perform(get("/api/trackings"))
                 .andExpect(status().isOk())
@@ -215,6 +223,7 @@ class FlightPlatformApplicationTest {
 
     @Test
     void shouldPreviewKakaoPayloadForTracking() throws Exception {
+        given(kakaoAuthService.getConnection("test-connection")).willReturn(sampleKakaoConnection());
         given(flightPrefetchService.isSupported(TripType.ROUND_TRIP, "ICN", "NRT", LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 5))).willReturn(true);
         given(flightPrefetchService.getCachedOrFetchFlights(
                 TripType.ROUND_TRIP,
@@ -226,13 +235,13 @@ class FlightPlatformApplicationTest {
 
         String body = mockMvc.perform(post("/api/trackings")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"personalDataConsent\":true,\"phoneNumber\":\"01012345678\"}"))
+                        .content("{\"tripType\":\"ROUND_TRIP\",\"origin\":\"ICN\",\"destination\":\"NRT\",\"departureDate\":\"2026-06-01\",\"returnDate\":\"2026-06-05\",\"targetPrice\":300000,\"kakaoNotificationEnabled\":true,\"kakaoOptIn\":true,\"kakaoConnectionId\":\"test-connection\"}"))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
-        String id = body.replaceAll(".*\"id\":(\\d+).*", "$1");
+        String id = extractId(body);
 
         mockMvc.perform(get("/api/notifications/kakao/trackings/{trackingId}/preview", id)
                         .param("previousPrice", "320000")
@@ -241,7 +250,10 @@ class FlightPlatformApplicationTest {
                 .andExpect(jsonPath("$.templateVariables.route").value("ICN → NRT"))
                 .andExpect(jsonPath("$.templateVariables.oldPrice").value("₩320,000"))
                 .andExpect(jsonPath("$.templateVariables.newPrice").value("₩270,000"))
-                .andExpect(jsonPath("$.messages[0].to").value("821012345678"));
+                .andExpect(jsonPath("$.object_type").value("text"))
+                .andExpect(jsonPath("$.button_title").value("추적 목록 보기"))
+                .andExpect(jsonPath("$.buttons[0].title").value("추적 목록 보기"))
+                .andExpect(jsonPath("$.buttons[1].title").value("스카이스캐너 이동"));
     }
 
     @Test
@@ -335,5 +347,24 @@ class FlightPlatformApplicationTest {
         first.setReturnDepartureTime(LocalDateTime.of(2026, 6, 5, 16, 0));
         first.setReturnArrivalTime(LocalDateTime.of(2026, 6, 5, 18, 30));
         return java.util.Collections.singletonList(first);
+    }
+
+    private KakaoAuthConnection sampleKakaoConnection() {
+        KakaoAuthConnection connection = new KakaoAuthConnection();
+        connection.setId("test-connection");
+        connection.setKakaoUserId(1001L);
+        connection.setNickname("테스트 사용자");
+        connection.setAccessToken("test-access-token");
+        connection.setRefreshToken("test-refresh-token");
+        connection.setCreatedAt(LocalDateTime.of(2026, 5, 1, 9, 0));
+        return connection;
+    }
+
+    private String extractId(String body) {
+        Matcher matcher = Pattern.compile("\"id\":(\\d+)").matcher(body);
+        if (!matcher.find()) {
+            throw new AssertionError("Tracking id not found in response: " + body);
+        }
+        return matcher.group(1);
     }
 }

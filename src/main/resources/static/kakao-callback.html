@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>카카오 연결 중</title>
+</head>
+<body>
+  <p id="status">카카오 연결을 완료하는 중입니다...</p>
+  <script>
+    (async function () {
+      const status = document.getElementById("status");
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+
+      if (!code) {
+        status.textContent = "카카오 인증 코드가 없습니다.";
+        return;
+      }
+
+      try {
+        const callbackUrl = `/api/notifications/kakao/auth/callback?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
+        const response = await fetch(callbackUrl);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.message || "카카오 연결에 실패했습니다.");
+        }
+
+        if (window.opener) {
+          window.opener.postMessage({
+            type: "kakao-auth-success",
+            connectionId: payload.connectionId,
+            kakaoUserId: payload.kakaoUserId,
+            nickname: payload.nickname
+          }, window.location.origin);
+        }
+        status.textContent = "카카오 연결이 완료되었습니다. 이 창은 곧 닫힙니다.";
+        window.setTimeout(() => window.close(), 600);
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    }());
+  </script>
+</body>
+</html>

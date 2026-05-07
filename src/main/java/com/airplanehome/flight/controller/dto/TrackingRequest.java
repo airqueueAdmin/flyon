@@ -24,6 +24,7 @@ public class TrackingRequest {
     private Boolean kakaoNotificationEnabled;
     private String phoneNumber;
     private Boolean kakaoOptIn;
+    private String kakaoConnectionId;
 
     public TripType getTripType() {
         return tripType;
@@ -122,6 +123,14 @@ public class TrackingRequest {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public String getKakaoConnectionId() {
+        return kakaoConnectionId;
+    }
+
+    public void setKakaoConnectionId(String kakaoConnectionId) {
+        this.kakaoConnectionId = kakaoConnectionId;
     }
 
     public Boolean getKakaoOptIn() {

@@ -166,6 +166,7 @@ const AIRPORT_OPTIONS = {
 const AIRPORT_DISPLAY_MAP = buildAirportDisplayMap();
 
 const SEARCH_WINDOW_DAYS = 7;
+const KAKAO_CONNECTION_STORAGE_KEY = "flight-platform.kakao-connection";
 
 function populateSelect(selector, options, placeholder) {
   const select = qs(selector);
@@ -261,13 +262,32 @@ async function loadNotificationExample(targetSelector) {
 }
 
 function extractNotificationButtons(payload) {
-  const messages = payload && Array.isArray(payload.messages) ? payload.messages : [];
-  const firstMessage = messages.length ? messages[0] : null;
-  const buttons = firstMessage && Array.isArray(firstMessage.buttons) ? firstMessage.buttons : [];
+  const buttons = payload && Array.isArray(payload.buttons) ? payload.buttons : [];
   const labels = buttons
-    .map((button) => button.name)
+    .map((button) => button.title)
     .filter((value) => value);
   return labels.length ? labels : ["추적 목록 보기", "예약처로 이동"];
+}
+
+function getStoredKakaoConnection() {
+  const raw = window.localStorage.getItem(KAKAO_CONNECTION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    window.localStorage.removeItem(KAKAO_CONNECTION_STORAGE_KEY);
+    return null;
+  }
+}
+
+function storeKakaoConnection(connection) {
+  window.localStorage.setItem(KAKAO_CONNECTION_STORAGE_KEY, JSON.stringify(connection));
+}
+
+function clearKakaoConnection() {
+  window.localStorage.removeItem(KAKAO_CONNECTION_STORAGE_KEY);
 }
 
 function escapeHtml(value) {
@@ -303,13 +323,15 @@ function initSearchPage() {
   const returnDateField = qs("#return-date-field");
   const searchWindowNote = qs("#search-window-note");
   const kakaoEnabledInput = qs("#kakao-enabled");
-  const privacyConsentInput = qs("#privacy-consent");
-  const privacyConsentGroup = qs("#privacy-consent-group");
   const kakaoOptInInput = qs("#kakao-opt-in");
-  const phoneNumberInput = qs("#phone-number");
+  const kakaoConnectGroup = qs("#kakao-connect-group");
+  const kakaoConnectionState = qs("#kakao-connection-state");
+  const kakaoConnectButton = qs("#kakao-connect-button");
+  const kakaoDisconnectButton = qs("#kakao-disconnect-button");
   const tripTypeInputs = document.querySelectorAll('input[name="trip-type"]');
   let selectedFlight = null;
   let searchState = null;
+  let kakaoConnection = getStoredKakaoConnection();
 
   populateSelect("#origin", AIRPORT_OPTIONS.origin);
   populateSelect("#destination", AIRPORT_OPTIONS.destination);
@@ -333,6 +355,52 @@ function initSearchPage() {
 
   kakaoEnabledInput.addEventListener("change", () => {
     syncKakaoFields();
+  });
+
+  window.addEventListener("message", async (event) => {
+    if (event.origin !== window.location.origin) {
+      return;
+    }
+    if (!event.data || event.data.type !== "kakao-auth-success") {
+      return;
+    }
+
+    kakaoConnection = {
+      connectionId: event.data.connectionId,
+      nickname: event.data.nickname || "카카오 사용자",
+      kakaoUserId: event.data.kakaoUserId
+    };
+    storeKakaoConnection(kakaoConnection);
+    syncKakaoFields();
+    modalStatus.textContent = "카카오 연결이 완료되었습니다.";
+    modalStatus.className = "status success";
+  });
+
+  kakaoConnectButton.addEventListener("click", async () => {
+    kakaoConnectButton.disabled = true;
+    modalStatus.textContent = "카카오 로그인 창을 여는 중입니다...";
+    modalStatus.className = "status";
+
+    try {
+      const auth = await requestJson("/api/notifications/kakao/auth/start");
+      const popup = window.open(auth.authorizationUrl, "kakao-auth", "width=520,height=720");
+      if (!popup) {
+        throw new Error("팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.");
+      }
+    } catch (error) {
+      modalStatus.textContent = error.message;
+      modalStatus.className = "status error";
+    } finally {
+      kakaoConnectButton.disabled = false;
+    }
+  });
+
+  kakaoDisconnectButton.addEventListener("click", () => {
+    clearKakaoConnection();
+    kakaoConnection = null;
+    syncKakaoFields();
+    modalStatus.textContent = "카카오 연결이 해제되었습니다.";
+    modalStatus.className = "status";
   });
 
   form.addEventListener("submit", async (event) => {
@@ -424,9 +492,8 @@ function initSearchPage() {
       adults: searchState.adults,
       targetPrice: rawTargetPrice ? Number(rawTargetPrice) : null,
       kakaoNotificationEnabled: kakaoEnabled,
-      personalDataConsent: kakaoEnabled && privacyConsentInput.checked,
       kakaoOptIn: kakaoEnabled && kakaoOptInInput.checked,
-      phoneNumber: kakaoEnabled ? phoneNumberInput.value.trim() : ""
+      kakaoConnectionId: kakaoEnabled && kakaoConnection ? kakaoConnection.connectionId : null
     };
 
     try {
@@ -470,15 +537,20 @@ function initSearchPage() {
 
   function syncKakaoFields() {
     const enabled = kakaoEnabledInput.checked;
-    privacyConsentGroup.hidden = !enabled;
+    kakaoConnectGroup.hidden = !enabled;
     kakaoOptInInput.disabled = !enabled;
-    phoneNumberInput.disabled = !enabled;
-    phoneNumberInput.required = enabled;
-    privacyConsentInput.required = enabled;
     kakaoOptInInput.required = enabled;
+    const isConnected = Boolean(kakaoConnection && kakaoConnection.connectionId);
+    if (kakaoConnectionState) {
+      kakaoConnectionState.textContent = enabled
+        ? isConnected
+          ? `연결됨: ${kakaoConnection.nickname || "카카오 사용자"}`
+          : "카카오 로그인이 아직 연결되지 않았습니다."
+        : "카카오 알림을 끄면 로그인 연결 없이 추적만 저장합니다.";
+    }
+    kakaoConnectButton.hidden = !enabled || isConnected;
+    kakaoDisconnectButton.hidden = !enabled || !isConnected;
     if (!enabled) {
-      phoneNumberInput.value = "";
-      privacyConsentInput.checked = false;
       kakaoOptInInput.checked = false;
     }
   }
@@ -637,7 +709,7 @@ function initTrackingPage() {
       status.textContent = "";
 
       if (!trackings.length) {
-        list.innerHTML = `<div class="empty-state"><h3>아직 추적 중인 노선이 없습니다</h3><p class="muted">노선을 검색한 뒤 가격 추적을 누르고 카카오 알림을 설정해 보세요.</p></div>`;
+        list.innerHTML = `<div class="empty-state"><h3>아직 추적 중인 노선이 없습니다</h3><p class="muted">노선을 검색한 뒤 가격 추적을 누르고 카카오 로그인을 연결해 보세요.</p></div>`;
         return;
       }
 
@@ -657,7 +729,7 @@ function initTrackingPage() {
 
   function renderFilteredTrackings() {
     if (!allTrackings.length) {
-      list.innerHTML = `<div class="empty-state"><h3>아직 추적 중인 노선이 없습니다</h3><p class="muted">노선을 검색한 뒤 가격 추적을 누르고 카카오 알림을 설정해 보세요.</p></div>`;
+      list.innerHTML = `<div class="empty-state"><h3>아직 추적 중인 노선이 없습니다</h3><p class="muted">노선을 검색한 뒤 가격 추적을 누르고 카카오 로그인을 연결해 보세요.</p></div>`;
       return;
     }
 
@@ -733,6 +805,10 @@ function renderTrackings(target, trackings, onRemove) {
           <span>현재 최저가 귀국 도착</span>
           <span>${formatDateTime(tracking.lastReturnArrivalTime)}</span>
         </div>` : ""}
+        <div class="tracking-line">
+          <span>카카오 연결</span>
+          <span>${tracking.kakaoNickname || (tracking.kakaoLinked ? "연결됨" : "미연결")}</span>
+        </div>
         <div class="tracking-line">
           <span>목표 가격</span>
           <span>${formatMoney(tracking.targetPrice)}</span>

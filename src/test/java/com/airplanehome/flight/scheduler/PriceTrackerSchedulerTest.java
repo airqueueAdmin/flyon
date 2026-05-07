@@ -41,7 +41,8 @@ class PriceTrackerSchedulerTest {
         tracking.setOrigin("ICN");
         tracking.setDestination("NRT");
         tracking.setDepartureDate(LocalDate.of(2026, 5, 1));
-        tracking.setPhoneNumber("01012345678");
+        tracking.setKakaoUserId(1001L);
+        tracking.setKakaoAccessToken("test-access-token");
         tracking.setKakaoOptIn(Boolean.TRUE);
         tracking.setLastNotifiedPrice(BigDecimal.valueOf(270000));
 
@@ -77,7 +78,8 @@ class PriceTrackerSchedulerTest {
         tracking.setOrigin("ICN");
         tracking.setDestination("NRT");
         tracking.setDepartureDate(LocalDate.of(2026, 5, 1));
-        tracking.setPhoneNumber("01012345678");
+        tracking.setKakaoUserId(1001L);
+        tracking.setKakaoAccessToken("test-access-token");
         tracking.setKakaoOptIn(Boolean.TRUE);
 
         given(flightService.checkTrackedPrices()).willReturn(Collections.singletonList(notification));
@@ -114,7 +116,8 @@ class PriceTrackerSchedulerTest {
         tracking.setOrigin("ICN");
         tracking.setDestination("NRT");
         tracking.setDepartureDate(LocalDate.of(2026, 5, 1));
-        tracking.setPhoneNumber("01012345678");
+        tracking.setKakaoUserId(1001L);
+        tracking.setKakaoAccessToken("test-access-token");
         tracking.setKakaoOptIn(Boolean.TRUE);
 
         given(flightService.checkTrackedPrices()).willReturn(Collections.singletonList(notification));

@@ -1,16 +1,14 @@
 package com.airplanehome.flight.service;
 
-import java.nio.charset.StandardCharsets;
+import com.airplanehome.flight.model.Tracking;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import com.airplanehome.flight.model.Tracking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +18,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -30,18 +30,24 @@ public class KakaoNotificationService {
     private static final Logger log = LoggerFactory.getLogger(KakaoNotificationService.class);
     private static final String TEMPLATE_CONTENT =
             "[항공권 가격 변동 안내]\n\n#{route} 항공권 가격이 변경되었습니다.\n\n이전 가격: #{oldPrice}\n현재 가격: #{newPrice}\n\n자세히 보기:\n#{link}";
-    private static final String NCP_BASE_URL = "https://sens.apigw.ntruss.com";
+    private static final String KAKAO_MEMO_SEND_URL = "https://kapi.kakao.com/v2/api/talk/memo/default/send";
     private static final String SKYSCANNER_BASE_URL = "https://www.skyscanner.co.kr";
 
     private final RestTemplate restTemplate;
     private final KakaoNotificationProperties properties;
+    private final KakaoAuthService kakaoAuthService;
+    private final ObjectMapper objectMapper;
     private final String appBaseUrl;
 
     public KakaoNotificationService(RestTemplate restTemplate,
                                     KakaoNotificationProperties properties,
+                                    KakaoAuthService kakaoAuthService,
+                                    ObjectMapper objectMapper,
                                     @Value("${app.web.base-url}") String appBaseUrl) {
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.kakaoAuthService = kakaoAuthService;
+        this.objectMapper = objectMapper;
         this.appBaseUrl = appBaseUrl;
     }
 
@@ -51,33 +57,36 @@ public class KakaoNotificationService {
             log.error("KAKAO_FAILED: disabled {}", route);
             return false;
         }
-        if (!"ncp-sens".equalsIgnoreCase(properties.getProvider())) {
+        if (!"kakao-message-api".equalsIgnoreCase(properties.getProvider())) {
             log.error("KAKAO_FAILED: unsupported provider {}", properties.getProvider());
             return false;
         }
-        String normalizedPhoneNumber = normalizePhoneNumber(tracking.getPhoneNumber());
-        if (!properties.getMissingRequiredFields().isEmpty() || !StringUtils.hasText(normalizedPhoneNumber)) {
-            log.error("KAKAO_FAILED: missing configuration or recipient {} missing={}",
-                    route,
-                    properties.getMissingRequiredFields());
+        if (!properties.getMissingRequiredFields().isEmpty()) {
+            log.error("KAKAO_FAILED: missing configuration {} missing={}", route, properties.getMissingRequiredFields());
             return false;
         }
 
-        String path = "/alimtalk/v2/services/" + properties.getServiceId() + "/messages";
-        Map<String, Object> payload = buildPayload(tracking, normalizedPhoneNumber, oldPrice, newPrice);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        addNcpSignatureHeaders(headers, path);
-
         try {
+            kakaoAuthService.refreshTrackingTokensIfNeeded(tracking);
+            if (!StringUtils.hasText(tracking.getKakaoAccessToken())) {
+                log.error("KAKAO_FAILED: missing access token {}", route);
+                return false;
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(tracking.getKakaoAccessToken());
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> form = new LinkedMultiValueMap<String, String>();
+            form.add("template_object", toJson(buildPayload(tracking, oldPrice, newPrice)));
+
             ResponseEntity<Map> response = restTemplate.exchange(
-                    NCP_BASE_URL + path,
+                    KAKAO_MEMO_SEND_URL,
                     HttpMethod.POST,
-                    new HttpEntity<Map<String, Object>>(payload, headers),
+                    new HttpEntity<MultiValueMap<String, String>>(form, headers),
                     Map.class);
-            boolean accepted = isAccepted(response);
-            if (accepted) {
+
+            if (isAccepted(response)) {
                 log.info("KAKAO_SENT: {}→{} {}→{}",
                         tracking.getOrigin(),
                         tracking.getDestination(),
@@ -85,6 +94,7 @@ public class KakaoNotificationService {
                         newPrice);
                 return true;
             }
+
             log.error("KAKAO_FAILED: unexpected status {}", response.getStatusCodeValue());
             return false;
         } catch (RestClientException ex) {
@@ -97,13 +107,13 @@ public class KakaoNotificationService {
         Tracking tracking = new Tracking();
         tracking.setOrigin("ICN");
         tracking.setDestination("NRT");
-        tracking.setPhoneNumber("01012345678");
         tracking.setDepartureDate(java.time.LocalDate.of(2026, 5, 1));
-        return buildPayload(tracking, normalizePhoneNumber(tracking.getPhoneNumber()), 320000, 270000);
+        tracking.setKakaoNickname("카카오 사용자");
+        return buildPayload(tracking, 320000, 270000);
     }
 
     public Map<String, Object> previewPayload(Tracking tracking, int oldPrice, int newPrice) {
-        return buildPayload(tracking, normalizePhoneNumber(tracking.getPhoneNumber()), oldPrice, newPrice);
+        return buildPayload(tracking, oldPrice, newPrice);
     }
 
     public Map<String, Object> status() {
@@ -112,9 +122,7 @@ public class KakaoNotificationService {
         status.put("enabled", Boolean.valueOf(properties.isEnabled()));
         status.put("ready", Boolean.valueOf(properties.isReady()));
         status.put("provider", properties.getProvider());
-        status.put("templateCode", properties.getTemplateCode());
-        status.put("plusFriendId", properties.getPlusFriendId());
-        status.put("senderNumberMasked", maskPhoneNumber(properties.getSenderNumber()));
+        status.put("redirectUri", properties.getRedirectUri());
         status.put("appBaseUrl", appBaseUrl);
         status.put("minPriceDropKrw", properties.getMinPriceDropKrw());
         status.put("minPriceDropPercent", properties.getMinPriceDropPercent());
@@ -122,21 +130,18 @@ public class KakaoNotificationService {
         return status;
     }
 
-    private Map<String, Object> buildPayload(Tracking tracking, String normalizedPhoneNumber, int oldPrice, int newPrice) {
+    private Map<String, Object> buildPayload(Tracking tracking, int oldPrice, int newPrice) {
         Map<String, String> variables = buildTemplateVariables(tracking, oldPrice, newPrice);
         String content = applyTemplate(variables);
 
-        Map<String, Object> message = new LinkedHashMap<String, Object>();
-        message.put("to", normalizedPhoneNumber);
-        message.put("content", content);
-        message.put("buttons", buildButtons(tracking));
-
-        Map<String, Object> payload = new LinkedHashMap<String, Object>();
-        payload.put("plusFriendId", properties.getPlusFriendId());
-        payload.put("templateCode", properties.getTemplateCode());
-        payload.put("messages", java.util.Collections.singletonList(message));
-        payload.put("templateVariables", variables);
-        return payload;
+        Map<String, Object> templateObject = new LinkedHashMap<String, Object>();
+        templateObject.put("object_type", "text");
+        templateObject.put("text", content);
+        templateObject.put("link", buildPrimaryLink(tracking));
+        templateObject.put("button_title", "추적 목록 보기");
+        templateObject.put("buttons", buildButtons(tracking));
+        templateObject.put("templateVariables", variables);
+        return templateObject;
     }
 
     private Map<String, String> buildTemplateVariables(Tracking tracking, int oldPrice, int newPrice) {
@@ -156,20 +161,29 @@ public class KakaoNotificationService {
         return content;
     }
 
-    private List<Map<String, String>> buildButtons(Tracking tracking) {
-        List<Map<String, String>> buttons = new java.util.ArrayList<Map<String, String>>();
+    private List<Map<String, Object>> buildButtons(Tracking tracking) {
+        List<Map<String, Object>> buttons = new ArrayList<Map<String, Object>>();
         buttons.add(buildWebLinkButton("추적 목록 보기", buildTrackingPageLink(tracking)));
         buttons.add(buildWebLinkButton("스카이스캐너 이동", buildSkyscannerLink(tracking)));
         return buttons;
     }
 
-    private Map<String, String> buildWebLinkButton(String name, String link) {
-        Map<String, String> button = new LinkedHashMap<String, String>();
-        button.put("type", "WL");
-        button.put("name", name);
-        button.put("linkMobile", link);
-        button.put("linkPc", link);
+    private Map<String, Object> buildPrimaryLink(Tracking tracking) {
+        return buildLinkObject(buildTrackingPageLink(tracking));
+    }
+
+    private Map<String, Object> buildWebLinkButton(String name, String link) {
+        Map<String, Object> button = new LinkedHashMap<String, Object>();
+        button.put("title", name);
+        button.put("link", buildLinkObject(link));
         return button;
+    }
+
+    private Map<String, Object> buildLinkObject(String link) {
+        Map<String, Object> linkObject = new LinkedHashMap<String, Object>();
+        linkObject.put("web_url", link);
+        linkObject.put("mobile_web_url", link);
+        return linkObject;
     }
 
     private String buildTrackingPageLink(Tracking tracking) {
@@ -224,72 +238,18 @@ public class KakaoNotificationService {
     }
 
     private boolean isAccepted(ResponseEntity<Map> response) {
-        if (response.getStatusCodeValue() != 202) {
-            return false;
-        }
-        Map body = response.getBody();
-        if (body == null) {
-            return true;
-        }
-        Object messagesObject = body.get("messages");
-        if (!(messagesObject instanceof List) || ((List) messagesObject).isEmpty()) {
-            return true;
-        }
-        Object firstMessage = ((List) messagesObject).get(0);
-        if (!(firstMessage instanceof Map)) {
-            return true;
-        }
-        Object requestStatusCode = ((Map) firstMessage).get("requestStatusCode");
-        return requestStatusCode == null || "A000".equals(String.valueOf(requestStatusCode));
+        return response.getStatusCodeValue() == 200;
     }
 
-    private void addNcpSignatureHeaders(HttpHeaders headers, String path) {
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        headers.set("x-ncp-apigw-timestamp", timestamp);
-        headers.set("x-ncp-iam-access-key", properties.getApiKey());
-        headers.set("x-ncp-apigw-signature-v2", createSignature("POST", path, timestamp));
-    }
-
-    private String createSignature(String method, String path, String timestamp) {
-        String message = method + " " + path + "\n" + timestamp + "\n" + properties.getApiKey();
+    private String toJson(Map<String, Object> payload) {
         try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(properties.getApiSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] rawHmac = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(rawHmac);
-        } catch (Exception ex) {
-            throw new IllegalStateException("Failed to create NCP signature", ex);
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("카카오 메시지 템플릿 직렬화에 실패했습니다.", ex);
         }
     }
 
     private String formatWon(int value) {
         return "\u20a9" + NumberFormat.getNumberInstance(Locale.KOREA).format(value);
-    }
-
-    private String normalizePhoneNumber(String phoneNumber) {
-        if (!StringUtils.hasText(phoneNumber)) {
-            return null;
-        }
-
-        String digits = phoneNumber.replaceAll("[^0-9]", "");
-        if (digits.startsWith("82")) {
-            return digits;
-        }
-        if (digits.startsWith("0")) {
-            return "82" + digits.substring(1);
-        }
-        return digits;
-    }
-
-    private String maskPhoneNumber(String phoneNumber) {
-        if (!StringUtils.hasText(phoneNumber)) {
-            return null;
-        }
-
-        String digits = phoneNumber.replaceAll("[^0-9]", "");
-        if (digits.length() < 7) {
-            return digits;
-        }
-        return digits.substring(0, 3) + "****" + digits.substring(digits.length() - 4);
     }
 }

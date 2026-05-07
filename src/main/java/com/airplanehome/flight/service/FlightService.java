@@ -3,6 +3,7 @@ package com.airplanehome.flight.service;
 import com.airplanehome.flight.controller.dto.FlightSearchRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.KakaoAuthConnection;
 import com.airplanehome.flight.model.PriceHistory;
 import com.airplanehome.flight.model.Tracking;
 import com.airplanehome.flight.model.TripType;
@@ -32,15 +33,18 @@ public class FlightService {
     private final PriceHistoryRepository priceHistoryRepository;
     private final ExchangeRateService exchangeRateService;
     private final FlightPrefetchService flightPrefetchService;
+    private final KakaoAuthService kakaoAuthService;
 
     public FlightService(TrackingRepository trackingRepository,
                          PriceHistoryRepository priceHistoryRepository,
                          ExchangeRateService exchangeRateService,
-                         FlightPrefetchService flightPrefetchService) {
+                         FlightPrefetchService flightPrefetchService,
+                         KakaoAuthService kakaoAuthService) {
         this.trackingRepository = trackingRepository;
         this.priceHistoryRepository = priceHistoryRepository;
         this.exchangeRateService = exchangeRateService;
         this.flightPrefetchService = flightPrefetchService;
+        this.kakaoAuthService = kakaoAuthService;
     }
 
     public List<FlightPrice> searchLowestPrice(FlightSearchRequest request) {
@@ -107,8 +111,10 @@ public class FlightService {
         TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
         LocalDate returnDate = normalizeReturnDate(tripType, request.getDepartureDate(), request.getReturnDate());
         boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
-        boolean personalDataConsent = Boolean.TRUE.equals(request.getPersonalDataConsent());
         boolean kakaoOptIn = kakaoEnabled && Boolean.TRUE.equals(resolveKakaoOptIn(request));
+        KakaoAuthConnection kakaoConnection = kakaoEnabled
+                ? kakaoAuthService.getConnection(request.getKakaoConnectionId())
+                : null;
         tracking.setTripType(tripType);
         tracking.setEmail(null);
         tracking.setOrigin(request.getOrigin().trim().toUpperCase());
@@ -118,10 +124,16 @@ public class FlightService {
         tracking.setPassengers(Integer.valueOf(normalizeAdults(request.getAdults())));
         tracking.setTargetPrice(request.getTargetPrice());
         tracking.setKakaoNotificationEnabled(Boolean.valueOf(kakaoEnabled));
-        tracking.setPhoneNumber(kakaoEnabled ? normalizePhoneNumber(request.getPhoneNumber()) : null);
+        tracking.setPhoneNumber(null);
+        tracking.setKakaoUserId(kakaoConnection == null ? null : kakaoConnection.getKakaoUserId());
+        tracking.setKakaoAccessToken(kakaoConnection == null ? null : kakaoConnection.getAccessToken());
+        tracking.setKakaoRefreshToken(kakaoConnection == null ? null : kakaoConnection.getRefreshToken());
+        tracking.setKakaoAccessTokenExpiresAt(kakaoConnection == null ? null : kakaoConnection.getAccessTokenExpiresAt());
+        tracking.setKakaoRefreshTokenExpiresAt(kakaoConnection == null ? null : kakaoConnection.getRefreshTokenExpiresAt());
+        tracking.setKakaoNickname(kakaoConnection == null ? null : kakaoConnection.getNickname());
         tracking.setKakaoOptIn(Boolean.valueOf(kakaoOptIn));
-        tracking.setPersonalDataConsent(Boolean.valueOf(personalDataConsent));
-        tracking.setPersonalDataConsentAt(personalDataConsent ? TimeSupport.nowKst() : null);
+        tracking.setPersonalDataConsent(Boolean.FALSE);
+        tracking.setPersonalDataConsentAt(null);
         tracking.setKakaoOptInAt(kakaoOptIn ? TimeSupport.nowKst() : null);
         tracking.setLastUpdatedAt(TimeSupport.nowKst());
 
@@ -229,9 +241,10 @@ public class FlightService {
                 && currentPrice.getPrice().compareTo(tracking.getTargetPrice()) <= 0;
         boolean kakaoEnabled = Boolean.TRUE.equals(tracking.getKakaoNotificationEnabled());
         boolean kakaoOptIn = Boolean.TRUE.equals(tracking.getKakaoOptIn());
-        boolean hasPhoneNumber = StringUtils.hasText(tracking.getPhoneNumber());
+        boolean kakaoLinked = tracking.isKakaoLinked();
+        boolean hasAccessToken = StringUtils.hasText(tracking.getKakaoAccessToken());
 
-        if (kakaoEnabled && kakaoOptIn && hasPhoneNumber && (lowerThanPrevious || lowerThanTarget)) {
+        if (kakaoEnabled && kakaoOptIn && kakaoLinked && hasAccessToken && (lowerThanPrevious || lowerThanTarget)) {
             return new PriceDropNotification(
                     tracking.getId(),
                     tracking.getOrigin(),
@@ -286,15 +299,11 @@ public class FlightService {
         validateSearch(tripType, request.getOrigin(), request.getDestination(), request.getDepartureDate(), request.getReturnDate());
         boolean kakaoEnabled = Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
         boolean kakaoOptIn = Boolean.TRUE.equals(resolveKakaoOptIn(request));
-        boolean personalDataConsent = Boolean.TRUE.equals(request.getPersonalDataConsent());
-        if (kakaoEnabled && !personalDataConsent) {
-            throw new IllegalArgumentException("카카오 알림을 사용하려면 개인정보 수집·이용에 동의해야 합니다.");
-        }
         if (kakaoEnabled && !kakaoOptIn) {
-            throw new IllegalArgumentException("카카오 알림을 사용하려면 알림톡 발송을 위한 개인정보 제공에 동의해야 합니다.");
+            throw new IllegalArgumentException("카카오 알림을 사용하려면 카카오 메시지 수신에 동의해야 합니다.");
         }
-        if (kakaoEnabled && !StringUtils.hasText(request.getPhoneNumber())) {
-            throw new IllegalArgumentException("카카오 알림톡을 사용하는 경우 전화번호를 입력해야 합니다.");
+        if (kakaoEnabled && !StringUtils.hasText(request.getKakaoConnectionId())) {
+            throw new IllegalArgumentException("카카오 알림을 사용하려면 먼저 카카오 로그인을 연결해야 합니다.");
         }
     }
 
@@ -344,12 +353,5 @@ public class FlightService {
             return request.getKakaoOptIn();
         }
         return Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
-    }
-
-    private String normalizePhoneNumber(String phoneNumber) {
-        if (!StringUtils.hasText(phoneNumber)) {
-            return null;
-        }
-        return phoneNumber.replaceAll("[^0-9]", "");
     }
 }

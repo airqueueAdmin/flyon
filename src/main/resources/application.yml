@@ -43,7 +43,10 @@ app:
     routes: ICN|NRT,ICN|FUK,ICN|KIX,ICN|TYO,ICN|CTS,ICN|OKA,ICN|BKK,ICN|HKG,ICN|TPE,ICN|SIN,ICN|DAD,ICN|SGN,ICN|MNL,ICN|CEB,ICN|SFO,ICN|LAX,ICN|JFK,ICN|SEA,ICN|YVR,ICN|GUM,ICN|SYD,ICN|MEL,ICN|CDG,ICN|LHR
   kakao:
     enabled: ${KAKAO_ENABLED:true}
-    provider: ${KAKAO_PROVIDER:ncp-sens}
+    provider: ${KAKAO_PROVIDER:kakao-message-api}
+    rest-api-key: ${KAKAO_REST_API_KEY:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    redirect-uri: ${KAKAO_REDIRECT_URI:}
     api-key: ${KAKAO_API_KEY:}
     api-secret: ${KAKAO_API_SECRET:}
     sender-number: ${KAKAO_SENDER_NUMBER:}

@@ -87,7 +87,7 @@
           <div class="flow-list">
             <div class="flow-item">1. 항공권을 검색하고 가장 저렴한 항공편을 선택합니다.</div>
             <div class="flow-item">2. <strong>가격 추적</strong>을 누르고 필요하면 목표 가격을 입력합니다.</div>
-            <div class="flow-item">3. 카카오 알림을 켜 두면 가격 하락이나 목표 가격 도달 시 알림을 받습니다.</div>
+            <div class="flow-item">3. 카카오 알림을 켜고 로그인 연결을 완료하면 가격 하락이나 목표 가격 도달 시 알림을 받습니다.</div>
             <div class="flow-item">4. 카카오 메시지의 버튼으로 추적 목록이나 스카이스캐너로 바로 이동합니다.</div>
           </div>
           <div class="message-preview-wrap">
@@ -123,24 +123,19 @@
           <label for="target-price">목표 가격 (선택)</label>
           <input id="target-price" type="number" min="0" step="1" placeholder="0">
         </div>
-        <div class="field">
-          <label for="phone-number">알림톡 수신 번호</label>
-          <input id="phone-number" type="tel" inputmode="numeric" placeholder="01012345678">
-        </div>
         <label class="checkline" for="kakao-enabled">
           <input id="kakao-enabled" type="checkbox">
           <span>카카오 알림 받기</span>
         </label>
-        <div id="privacy-consent-group" class="meta" hidden>
-          <p class="inline-note">수집 항목: 휴대전화번호 / 목적: 가격 하락 알림 발송 / 보관: 추적 삭제 시 즉시 파기 / 거부 시 카카오 알림 기능만 제한됩니다.</p>
-          <label class="checkline" for="privacy-consent">
-            <input id="privacy-consent" type="checkbox">
-            <span>개인정보 수집·이용에 동의합니다.</span>
-          </label>
-          <p class="inline-note">제공받는 자: 네이버클라우드 SENS / 제공 항목: 휴대전화번호, 알림 내용 / 목적: 알림톡 발송 / 보관: 발송 처리 목적 범위 내</p>
+        <div id="kakao-connect-group" class="meta" hidden>
+          <p id="kakao-connection-state" class="inline-note">카카오 로그인이 아직 연결되지 않았습니다.</p>
+          <div class="button-row">
+            <button id="kakao-connect-button" class="button" type="button">카카오 로그인 연결</button>
+            <button id="kakao-disconnect-button" class="ghost-button" type="button" hidden>연결 해제</button>
+          </div>
           <label class="checkline" for="kakao-opt-in">
             <input id="kakao-opt-in" type="checkbox">
-            <span>알림톡 발송을 위한 개인정보 제공에 동의합니다.</span>
+            <span>내 카카오톡으로 가격 알림을 받는 데 동의합니다.</span>
           </label>
         </div>
         <div class="modal-actions">
