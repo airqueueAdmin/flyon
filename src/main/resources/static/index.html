@@ -111,6 +111,7 @@
 
   <div id="track-modal" class="modal" aria-hidden="true">
     <div class="modal-card">
+      <button id="close-modal" class="modal-close-x" type="button" aria-label="닫기">✕</button>
       <div class="meta">
         <span class="eyebrow">가격 추적</span>
         <h3 id="selected-route">노선</h3>
@@ -128,7 +129,7 @@
         <div id="kakao-connect-group" class="meta" hidden>
           <p id="kakao-connection-state" class="inline-note">카카오 로그인이 아직 연결되지 않았습니다.</p>
           <div class="button-row">
-            <button id="kakao-connect-button" class="button" type="button">카카오 로그인 연결</button>
+            <button id="kakao-connect-button" class="kakao-button" type="button">카카오 로그인 연결</button>
             <button id="kakao-disconnect-button" class="ghost-button" type="button" hidden>연결 해제</button>
           </div>
           <label class="checkline" for="kakao-opt-in">
@@ -138,8 +139,7 @@
         </div>
         <div class="modal-actions">
           <button class="button" type="submit">추적 시작</button>
-          <button id="close-modal" class="ghost-button" type="button">닫기</button>
-          <a id="tracking-link" class="inline-button" href="/tracking.html" hidden>추적 페이지로 이동</a>
+          <a id="tracking-link" class="ghost-button" href="/tracking.html" hidden>추적 페이지로 이동</a>
         </div>
         <div id="track-status" class="status"></div>
       </form>

@@ -843,9 +843,13 @@ function renderTrackings(target, trackings, onRemove) {
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
-    removeButton.className = "ghost-button";
+    removeButton.className = "danger-button";
     removeButton.textContent = "삭제";
-    removeButton.addEventListener("click", () => onRemove(tracking.id));
+    removeButton.addEventListener("click", () => {
+      if (confirm(`${formatRoute(tracking.origin, tracking.destination)} 추적을 삭제하시겠습니까?\n삭제하면 가격 이력도 함께 제거됩니다.`)) {
+        onRemove(tracking.id);
+      }
+    });
 
     actionRow.appendChild(removeButton);
     card.appendChild(actionRow);

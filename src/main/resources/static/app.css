@@ -201,11 +201,15 @@ select:focus {
   border-color: var(--accent);
 }
 
-.button-row,
-.modal-actions {
+.button-row {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.modal-actions {
+  display: grid;
+  gap: 8px;
 }
 
 .button,
@@ -356,7 +360,78 @@ select:focus {
 }
 
 .modal-card {
+  position: relative;
   width: min(460px, 100%);
+}
+
+.modal-close-x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.modal-close-x:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.kakao-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #FEE500;
+  color: #3C1E1E;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.kakao-button:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+.kakao-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid rgba(177, 60, 47, 0.28);
+  border-radius: 12px;
+  background: transparent;
+  color: #b13c2f;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.danger-button:hover {
+  background: rgba(177, 60, 47, 0.08);
+  transform: translateY(-1px);
 }
 
 .status,
@@ -683,15 +758,16 @@ select:focus {
     font-size: 1.4rem;
   }
 
-  .button-row,
-  .modal-actions {
+  .button-row {
     display: grid;
     grid-template-columns: 1fr;
   }
 
   .button,
   .ghost-button,
-  .inline-button {
+  .inline-button,
+  .kakao-button,
+  .danger-button {
     width: 100%;
     min-height: 46px;
   }
