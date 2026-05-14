@@ -646,7 +646,6 @@ function initSearchPage() {
 
     const s = cached.searchState;
     if (!s.departureDate || s.departureDate < departureDateInput.min || s.departureDate > departureDateInput.max) {
-      sessionStorage.removeItem(SEARCH_CACHE_STORAGE_KEY);
       return;
     }
 
