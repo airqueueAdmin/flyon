@@ -50,9 +50,13 @@ public class Tracking {
     @JsonIgnore
     private Long kakaoUserId;
     @JsonIgnore
+    private String kakaoConnectionId;
+    @JsonIgnore
     private String kakaoAccessToken;
     @JsonIgnore
     private String kakaoRefreshToken;
+    @JsonIgnore
+    private String ownerTokenHash;
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
     private LocalDateTime kakaoAccessTokenExpiresAt;
     @JsonSerialize(using = KstLocalDateTimeSerializer.class)
@@ -256,6 +260,14 @@ public class Tracking {
         this.kakaoUserId = kakaoUserId;
     }
 
+    public String getKakaoConnectionId() {
+        return kakaoConnectionId;
+    }
+
+    public void setKakaoConnectionId(String kakaoConnectionId) {
+        this.kakaoConnectionId = kakaoConnectionId;
+    }
+
     public String getKakaoAccessToken() {
         return kakaoAccessToken;
     }
@@ -270,6 +282,14 @@ public class Tracking {
 
     public void setKakaoRefreshToken(String kakaoRefreshToken) {
         this.kakaoRefreshToken = kakaoRefreshToken;
+    }
+
+    public String getOwnerTokenHash() {
+        return ownerTokenHash;
+    }
+
+    public void setOwnerTokenHash(String ownerTokenHash) {
+        this.ownerTokenHash = ownerTokenHash;
     }
 
     public LocalDateTime getKakaoAccessTokenExpiresAt() {

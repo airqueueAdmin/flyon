@@ -196,6 +196,9 @@ public class KakaoNotificationService {
                     .queryParam("destination", tracking.getDestination())
                     .queryParam("date", tracking.getDepartureDate());
         }
+        if (StringUtils.hasText(tracking.getKakaoConnectionId())) {
+            builder.queryParam("connection", tracking.getKakaoConnectionId());
+        }
         return builder.build(true).toUriString();
     }
 

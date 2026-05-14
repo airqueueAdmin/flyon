@@ -12,11 +12,17 @@ import com.airplanehome.flight.repository.TrackingRepository;
 import com.airplanehome.flight.time.TimeSupport;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +34,8 @@ import org.springframework.util.StringUtils;
 public class FlightService {
     private static final Logger log = LoggerFactory.getLogger(FlightService.class);
     private static final int SUPPORTED_SEARCH_WINDOW_DAYS = 7;
+    private static final String OWNER_TOKEN_REQUIRED_MESSAGE = "브라우저 식별 정보가 없어 추적을 저장할 수 없습니다. 새로고침 후 다시 시도해 주세요.";
+    private static final String TRACKING_ACCESS_DENIED_MESSAGE = "해당 추적 목록에 접근할 권한이 없습니다.";
 
     private final TrackingRepository trackingRepository;
     private final PriceHistoryRepository priceHistoryRepository;
@@ -104,8 +112,11 @@ public class FlightService {
         return results;
     }
 
-    public Tracking createTracking(TrackingRequest request) {
+    public Tracking createTracking(TrackingRequest request, String ownerToken) {
         validateTrackingRequest(request);
+        if (!StringUtils.hasText(ownerToken)) {
+            throw new IllegalArgumentException(OWNER_TOKEN_REQUIRED_MESSAGE);
+        }
 
         Tracking tracking = new Tracking();
         TripType tripType = normalizeTripType(request.getTripType(), request.getReturnDate());
@@ -126,6 +137,7 @@ public class FlightService {
         tracking.setKakaoNotificationEnabled(Boolean.valueOf(kakaoEnabled));
         tracking.setPhoneNumber(null);
         tracking.setKakaoUserId(kakaoConnection == null ? null : kakaoConnection.getKakaoUserId());
+        tracking.setKakaoConnectionId(kakaoConnection == null ? null : kakaoConnection.getId());
         tracking.setKakaoAccessToken(kakaoConnection == null ? null : kakaoConnection.getAccessToken());
         tracking.setKakaoRefreshToken(kakaoConnection == null ? null : kakaoConnection.getRefreshToken());
         tracking.setKakaoAccessTokenExpiresAt(kakaoConnection == null ? null : kakaoConnection.getAccessTokenExpiresAt());
@@ -135,6 +147,7 @@ public class FlightService {
         tracking.setPersonalDataConsent(Boolean.FALSE);
         tracking.setPersonalDataConsentAt(null);
         tracking.setKakaoOptInAt(kakaoOptIn ? TimeSupport.nowKst() : null);
+        tracking.setOwnerTokenHash(hashToken(ownerToken));
         tracking.setLastUpdatedAt(TimeSupport.nowKst());
 
         List<FlightPrice> currentPrices = searchLowestPrice(
@@ -160,15 +173,39 @@ public class FlightService {
                 .orElseThrow(() -> new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id));
     }
 
-    public List<Tracking> getTrackings() {
-        return trackingRepository.findAll();
+    public Tracking getTracking(Long id, String ownerToken, String kakaoConnectionId) {
+        Tracking tracking = getTracking(id);
+        assertAccessible(tracking, buildAccessContext(ownerToken, kakaoConnectionId));
+        return tracking;
+    }
+
+    public List<Tracking> getTrackings(String ownerToken, String kakaoConnectionId) {
+        TrackingAccessContext accessContext = buildAccessContext(ownerToken, kakaoConnectionId);
+        Map<Long, Tracking> collected = new LinkedHashMap<Long, Tracking>();
+
+        if (accessContext.ownerTokenHash != null) {
+            for (Tracking tracking : trackingRepository.findByOwnerTokenHashOrderByLastUpdatedAtDesc(accessContext.ownerTokenHash)) {
+                collected.put(tracking.getId(), tracking);
+            }
+        }
+
+        if (accessContext.kakaoUserId != null) {
+            for (Tracking tracking : trackingRepository.findByKakaoUserIdOrderByLastUpdatedAtDesc(accessContext.kakaoUserId)) {
+                collected.put(tracking.getId(), tracking);
+            }
+        }
+
+        List<Tracking> results = new ArrayList<Tracking>(collected.values());
+        results.sort(Comparator
+                .comparing(Tracking::getLastUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Tracking::getId, Comparator.nullsLast(Comparator.reverseOrder())));
+        return results;
     }
 
     @Transactional
-    public void deleteTracking(Long id) {
-        if (!trackingRepository.existsById(id)) {
-            throw new EntityNotFoundException("추적 정보를 찾을 수 없습니다. ID: " + id);
-        }
+    public void deleteTracking(Long id, String ownerToken, String kakaoConnectionId) {
+        Tracking tracking = getTracking(id);
+        assertAccessible(tracking, buildAccessContext(ownerToken, kakaoConnectionId));
         priceHistoryRepository.deleteByTrackingId(id);
         trackingRepository.deleteById(id);
     }
@@ -362,5 +399,45 @@ public class FlightService {
             return request.getKakaoOptIn();
         }
         return Boolean.TRUE.equals(request.getKakaoNotificationEnabled());
+    }
+
+    private void assertAccessible(Tracking tracking, TrackingAccessContext accessContext) {
+        if (accessContext == null || !accessContext.canAccess(tracking)) {
+            throw new TrackingAccessDeniedException(TRACKING_ACCESS_DENIED_MESSAGE);
+        }
+    }
+
+    private TrackingAccessContext buildAccessContext(String ownerToken, String kakaoConnectionId) {
+        String ownerTokenHash = StringUtils.hasText(ownerToken) ? hashToken(ownerToken) : null;
+        Long kakaoUserId = null;
+        if (StringUtils.hasText(kakaoConnectionId)) {
+            kakaoUserId = kakaoAuthService.getConnection(kakaoConnectionId).getKakaoUserId();
+        }
+        return new TrackingAccessContext(ownerTokenHash, kakaoUserId);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 해시를 초기화할 수 없습니다.", ex);
+        }
+    }
+
+    private static final class TrackingAccessContext {
+        private final String ownerTokenHash;
+        private final Long kakaoUserId;
+
+        private TrackingAccessContext(String ownerTokenHash, Long kakaoUserId) {
+            this.ownerTokenHash = ownerTokenHash;
+            this.kakaoUserId = kakaoUserId;
+        }
+
+        private boolean canAccess(Tracking tracking) {
+            boolean ownerMatch = ownerTokenHash != null && ownerTokenHash.equals(tracking.getOwnerTokenHash());
+            boolean kakaoMatch = kakaoUserId != null && kakaoUserId.equals(tracking.getKakaoUserId());
+            return ownerMatch || kakaoMatch;
+        }
     }
 }

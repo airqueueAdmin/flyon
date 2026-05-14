@@ -1,5 +1,6 @@
 package com.airplanehome.flight.controller;
 
+import com.airplanehome.flight.service.TrackingAccessDeniedException;
 import java.util.Collections;
 import java.util.Map;
 import javax.persistence.EntityNotFoundException;
@@ -32,6 +33,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleEntityNotFound(EntityNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Collections.singletonMap("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(TrackingAccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleTrackingAccessDenied(TrackingAccessDeniedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Collections.singletonMap("message", exception.getMessage()));
     }
 }

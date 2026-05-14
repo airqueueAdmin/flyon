@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class FlightController {
+    private static final String OWNER_TOKEN_HEADER = "X-Tracking-Owner-Token";
+    private static final String KAKAO_CONNECTION_HEADER = "X-Kakao-Connection-Id";
+
     private final FlightService flightService;
 
     public FlightController(FlightService flightService) {
@@ -33,23 +37,29 @@ public class FlightController {
 
     @PostMapping("/trackings")
     @ResponseStatus(HttpStatus.CREATED)
-    public Tracking createTracking(@Valid @RequestBody TrackingRequest request) {
-        return flightService.createTracking(request);
+    public Tracking createTracking(@Valid @RequestBody TrackingRequest request,
+                                   @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken) {
+        return flightService.createTracking(request, ownerToken);
     }
 
     @GetMapping("/trackings")
-    public List<Tracking> getTrackings() {
-        return flightService.getTrackings();
+    public List<Tracking> getTrackings(@RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
+                                       @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
+        return flightService.getTrackings(ownerToken, kakaoConnectionId);
     }
 
     @GetMapping("/trackings/{id}")
-    public Tracking getTracking(@PathVariable Long id) {
-        return flightService.getTracking(id);
+    public Tracking getTracking(@PathVariable Long id,
+                                @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
+                                @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
+        return flightService.getTracking(id, ownerToken, kakaoConnectionId);
     }
 
     @DeleteMapping("/trackings/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTracking(@PathVariable Long id) {
-        flightService.deleteTracking(id);
+    public void deleteTracking(@PathVariable Long id,
+                               @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
+                               @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
+        flightService.deleteTracking(id, ownerToken, kakaoConnectionId);
     }
 }

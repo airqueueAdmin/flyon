@@ -64,7 +64,7 @@ function renderApproximateBadge(flight) {
 }
 
 async function requestJson(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, withTrackingAccess(url, options));
   if (!response.ok) {
     let message = "요청에 실패했습니다.";
     try {
@@ -167,6 +167,9 @@ const AIRPORT_DISPLAY_MAP = buildAirportDisplayMap();
 
 const SEARCH_WINDOW_DAYS = 7;
 const KAKAO_CONNECTION_STORAGE_KEY = "flight-platform.kakao-connection";
+const TRACKING_OWNER_STORAGE_KEY = "flight-platform.tracking-owner-token";
+const TRACKING_OWNER_HEADER = "X-Tracking-Owner-Token";
+const KAKAO_CONNECTION_HEADER = "X-Kakao-Connection-Id";
 
 function populateSelect(selector, options, placeholder) {
   const select = qs(selector);
@@ -290,6 +293,58 @@ function clearKakaoConnection() {
   window.localStorage.removeItem(KAKAO_CONNECTION_STORAGE_KEY);
 }
 
+function createTrackingOwnerToken() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getTrackingOwnerToken() {
+  let token = window.localStorage.getItem(TRACKING_OWNER_STORAGE_KEY);
+  if (!token) {
+    token = createTrackingOwnerToken();
+    window.localStorage.setItem(TRACKING_OWNER_STORAGE_KEY, token);
+  }
+  return token;
+}
+
+function withTrackingAccess(url, options) {
+  const nextOptions = options ? { ...options } : {};
+  if (!url.startsWith("/api/trackings")) {
+    return nextOptions;
+  }
+
+  const headers = new Headers(nextOptions.headers || {});
+  headers.set(TRACKING_OWNER_HEADER, getTrackingOwnerToken());
+
+  const kakaoConnection = getStoredKakaoConnection();
+  if (kakaoConnection && kakaoConnection.connectionId) {
+    headers.set(KAKAO_CONNECTION_HEADER, kakaoConnection.connectionId);
+  }
+
+  nextOptions.headers = headers;
+  return nextOptions;
+}
+
+function syncKakaoConnectionFromParams() {
+  const url = new URL(window.location.href);
+  const connectionId = url.searchParams.get("connection");
+  if (!connectionId) {
+    return;
+  }
+
+  const storedConnection = getStoredKakaoConnection() || {};
+  storeKakaoConnection({
+    connectionId,
+    nickname: storedConnection.nickname || "카카오 사용자",
+    kakaoUserId: storedConnection.kakaoUserId || null
+  });
+
+  url.searchParams.delete("connection");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -300,6 +355,7 @@ function escapeHtml(value) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  syncKakaoConnectionFromParams();
   if (document.body.dataset.page === "search") {
     initSearchPage();
   }
@@ -511,7 +567,11 @@ function initSearchPage() {
         trip_type: payload.tripType,
         kakao_enabled: payload.kakaoNotificationEnabled
       });
-      trackingLink.href = `/tracking.html?id=${tracking.id}`;
+      const trackingLinkParams = new URLSearchParams({ id: String(tracking.id) });
+      if (payload.kakaoConnectionId) {
+        trackingLinkParams.set("connection", payload.kakaoConnectionId);
+      }
+      trackingLink.href = `/tracking.html?${trackingLinkParams.toString()}`;
       trackingLink.hidden = false;
       modalForm.reset();
       syncKakaoFields();
