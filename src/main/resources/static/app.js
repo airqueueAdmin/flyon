@@ -168,6 +168,7 @@ const AIRPORT_DISPLAY_MAP = buildAirportDisplayMap();
 const SEARCH_WINDOW_DAYS = 7;
 const KAKAO_CONNECTION_STORAGE_KEY = "flight-platform.kakao-connection";
 const TRACKING_OWNER_STORAGE_KEY = "flight-platform.tracking-owner-token";
+const SEARCH_CACHE_STORAGE_KEY = "flight-platform.search-cache";
 const TRACKING_OWNER_HEADER = "X-Tracking-Owner-Token";
 const KAKAO_CONNECTION_HEADER = "X-Kakao-Connection-Id";
 
@@ -393,6 +394,7 @@ function initSearchPage() {
   populateSelect("#destination", AIRPORT_OPTIONS.destination);
   applySearchDateWindow();
   applySearchParams();
+  restoreSearchResultsCache();
   syncTripTypeFields();
   syncReturnDateConstraint();
   syncKakaoFields();
@@ -512,6 +514,7 @@ function initSearchPage() {
         trackingLink.hidden = true;
         modal.classList.add("open");
       });
+      sessionStorage.setItem(SEARCH_CACHE_STORAGE_KEY, JSON.stringify({ searchState: payload, flights }));
     } catch (error) {
       status.textContent = error.message;
       status.className = "status error";
@@ -628,6 +631,46 @@ function initSearchPage() {
     }
   }
 
+  function restoreSearchResultsCache() {
+    const raw = sessionStorage.getItem(SEARCH_CACHE_STORAGE_KEY);
+    if (!raw) return;
+    let cached;
+    try {
+      cached = JSON.parse(raw);
+    } catch {
+      sessionStorage.removeItem(SEARCH_CACHE_STORAGE_KEY);
+      return;
+    }
+    if (!cached || !Array.isArray(cached.flights) || !cached.flights.length || !cached.searchState) return;
+
+    const s = cached.searchState;
+    if (!s.departureDate || s.departureDate < departureDateInput.min || s.departureDate > departureDateInput.max) {
+      sessionStorage.removeItem(SEARCH_CACHE_STORAGE_KEY);
+      return;
+    }
+
+    searchState = s;
+    qs("#origin").value = s.origin || "";
+    qs("#destination").value = s.destination || "";
+    qs("#adults").value = String(s.adults || 1);
+    departureDateInput.value = s.departureDate;
+    if (s.tripType === "ROUND_TRIP") {
+      const rtInput = document.querySelector('input[name="trip-type"][value="ROUND_TRIP"]');
+      if (rtInput) rtInput.checked = true;
+    }
+    if (s.returnDate) returnDateInput.value = s.returnDate;
+
+    resultCount.textContent = `${cached.flights.length}개의 항공편을 찾았습니다`;
+    renderResults(results, cached.flights, (flight) => {
+      selectedFlight = flight;
+      selectedRoute.textContent = formatRoute(flight.origin, flight.destination);
+      modalStatus.textContent = "";
+      modalStatus.className = "status";
+      trackingLink.hidden = true;
+      modal.classList.add("open");
+    });
+  }
+
   function applySearchDateWindow() {
     const today = new Date();
     const maxDate = new Date(today);
@@ -656,6 +699,10 @@ function initSearchPage() {
     const tripType = params.get("tripType");
     const departureDate = params.get("departureDate");
     const returnDate = params.get("returnDate");
+
+    if (origin || destination) {
+      sessionStorage.removeItem(SEARCH_CACHE_STORAGE_KEY);
+    }
 
     if (origin) {
       qs("#origin").value = origin;
