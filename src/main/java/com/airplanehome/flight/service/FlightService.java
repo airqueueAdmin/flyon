@@ -212,8 +212,12 @@ public class FlightService {
 
     public List<PriceDropNotification> checkTrackedPrices() {
         List<Tracking> trackings = trackingRepository.findAll();
+        LocalDate todayKst = TimeSupport.nowKst().toLocalDate();
         List<PriceDropNotification> notifications = new ArrayList<PriceDropNotification>();
         for (Tracking tracking : trackings) {
+            if (tracking.getDepartureDate().isBefore(todayKst)) {
+                continue;
+            }
             try {
                 List<FlightPrice> currentPrices = searchLowestPrice(
                         normalizeTripType(tracking.getTripType(), tracking.getReturnDate()),
