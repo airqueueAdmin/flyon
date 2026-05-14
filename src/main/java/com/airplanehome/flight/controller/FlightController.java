@@ -37,9 +37,8 @@ public class FlightController {
 
     @PostMapping("/trackings")
     @ResponseStatus(HttpStatus.CREATED)
-    public Tracking createTracking(@Valid @RequestBody TrackingRequest request,
-                                   @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken) {
-        return flightService.createTracking(request, ownerToken);
+    public Tracking createTracking(@Valid @RequestBody TrackingRequest request) {
+        return flightService.createTracking(request, request.getOwnerToken());
     }
 
     @GetMapping("/trackings")

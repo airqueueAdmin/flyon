@@ -140,4 +140,14 @@ public class TrackingRequest {
     public void setKakaoOptIn(Boolean kakaoOptIn) {
         this.kakaoOptIn = kakaoOptIn;
     }
+
+    private String ownerToken;
+
+    public String getOwnerToken() {
+        return ownerToken;
+    }
+
+    public void setOwnerToken(String ownerToken) {
+        this.ownerToken = ownerToken;
+    }
 }

@@ -552,7 +552,8 @@ function initSearchPage() {
       targetPrice: rawTargetPrice ? Number(rawTargetPrice) : null,
       kakaoNotificationEnabled: kakaoEnabled,
       kakaoOptIn: kakaoEnabled && kakaoOptInInput.checked,
-      kakaoConnectionId: kakaoEnabled && kakaoConnection ? kakaoConnection.connectionId : null
+      kakaoConnectionId: kakaoEnabled && kakaoConnection ? kakaoConnection.connectionId : null,
+      ownerToken: getTrackingOwnerToken()
     };
 
     try {
