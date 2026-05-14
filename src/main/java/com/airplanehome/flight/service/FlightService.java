@@ -177,34 +177,43 @@ public class FlightService {
         List<Tracking> trackings = trackingRepository.findAll();
         List<PriceDropNotification> notifications = new ArrayList<PriceDropNotification>();
         for (Tracking tracking : trackings) {
-            List<FlightPrice> currentPrices = searchLowestPrice(
-                    normalizeTripType(tracking.getTripType(), tracking.getReturnDate()),
-                    tracking.getOrigin(),
-                    tracking.getDestination(),
-                    tracking.getDepartureDate(),
-                    tracking.getReturnDate(),
-                    tracking.getPassengers());
-            if (currentPrices.isEmpty()) {
-                if (tracking.getLastCheckedPrice() != null) {
-                    log.info("Using last known tracked price trackingId={} price={}",
-                            tracking.getId(),
-                            tracking.getLastCheckedPrice().stripTrailingZeros().toPlainString());
-                    tracking.setLastUpdatedAt(TimeSupport.nowKst());
-                    trackingRepository.save(tracking);
+            try {
+                List<FlightPrice> currentPrices = searchLowestPrice(
+                        normalizeTripType(tracking.getTripType(), tracking.getReturnDate()),
+                        tracking.getOrigin(),
+                        tracking.getDestination(),
+                        tracking.getDepartureDate(),
+                        tracking.getReturnDate(),
+                        tracking.getPassengers());
+                if (currentPrices.isEmpty()) {
+                    if (tracking.getLastCheckedPrice() != null) {
+                        log.info("Using last known tracked price trackingId={} price={}",
+                                tracking.getId(),
+                                tracking.getLastCheckedPrice().stripTrailingZeros().toPlainString());
+                        tracking.setLastUpdatedAt(TimeSupport.nowKst());
+                        trackingRepository.save(tracking);
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            FlightPrice currentPrice = currentPrices.get(0);
+                FlightPrice currentPrice = currentPrices.get(0);
 
-            saveHistory(tracking.getId(), currentPrice);
-            PriceDropNotification notification = buildPriceDropNotification(tracking, currentPrice);
-            if (notification != null) {
-                notifications.add(notification);
+                saveHistory(tracking.getId(), currentPrice);
+                PriceDropNotification notification = buildPriceDropNotification(tracking, currentPrice);
+                if (notification != null) {
+                    notifications.add(notification);
+                }
+                applyLatestPriceSnapshot(tracking, currentPrice);
+                tracking.setLastUpdatedAt(TimeSupport.nowKst());
+                trackingRepository.save(tracking);
+            } catch (Exception ex) {
+                log.warn("TRACKING_SKIP: trackingId={} {}→{} {}: {}",
+                        tracking.getId(),
+                        tracking.getOrigin(),
+                        tracking.getDestination(),
+                        tracking.getDepartureDate(),
+                        ex.getMessage());
             }
-            applyLatestPriceSnapshot(tracking, currentPrice);
-            tracking.setLastUpdatedAt(TimeSupport.nowKst());
-            trackingRepository.save(tracking);
         }
         return notifications;
     }

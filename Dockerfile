@@ -13,4 +13,4 @@ WORKDIR /app
 COPY --from=build /app/target/flight-platform-0.1.0-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
-CMD ["java", "-jar", "/app/app.jar"]
+CMD ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]
