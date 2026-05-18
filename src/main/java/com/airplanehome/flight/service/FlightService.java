@@ -231,22 +231,26 @@ public class FlightService {
                         log.info("Using last known tracked price trackingId={} price={}",
                                 tracking.getId(),
                                 tracking.getLastCheckedPrice().stripTrailingZeros().toPlainString());
-                        tracking.setLastUpdatedAt(TimeSupport.nowKst());
-                        trackingRepository.save(tracking);
                     }
                     continue;
                 }
 
                 FlightPrice currentPrice = currentPrices.get(0);
 
-                saveHistory(tracking.getId(), currentPrice);
+                boolean priceChanged = tracking.getLastCheckedPrice() == null
+                        || currentPrice.getPrice().compareTo(tracking.getLastCheckedPrice()) != 0;
+                if (priceChanged) {
+                    saveHistory(tracking.getId(), currentPrice);
+                }
                 PriceDropNotification notification = buildPriceDropNotification(tracking, currentPrice);
                 if (notification != null) {
                     notifications.add(notification);
                 }
-                applyLatestPriceSnapshot(tracking, currentPrice);
-                tracking.setLastUpdatedAt(TimeSupport.nowKst());
-                trackingRepository.save(tracking);
+                if (priceChanged || notification != null) {
+                    applyLatestPriceSnapshot(tracking, currentPrice);
+                    tracking.setLastUpdatedAt(TimeSupport.nowKst());
+                    trackingRepository.save(tracking);
+                }
             } catch (Exception ex) {
                 log.warn("TRACKING_SKIP: trackingId={} {}→{} {}: {}",
                         tracking.getId(),
