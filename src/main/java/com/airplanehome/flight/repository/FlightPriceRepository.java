@@ -45,4 +45,9 @@ public interface FlightPriceRepository extends JpaRepository<FlightPrice, Long> 
                                                                                                                                        LocalDate departureDateTo,
                                                                                                                                        LocalDate returnDateFrom,
                                                                                                                                        LocalDate returnDateTo);
+
+    List<FlightPrice> findByTripTypeAndOriginAndDepartureDateBetweenAndReturnDateIsNullOrderByPriceAsc(TripType tripType,
+                                                                                                        String origin,
+                                                                                                        LocalDate departureDateFrom,
+                                                                                                        LocalDate departureDateTo);
 }

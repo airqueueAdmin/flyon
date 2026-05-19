@@ -1,5 +1,7 @@
 package com.airplanehome.flight.service;
 
+import com.airplanehome.flight.controller.dto.DailyPriceDto;
+import com.airplanehome.flight.controller.dto.DealDto;
 import com.airplanehome.flight.controller.dto.FlightSearchRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
@@ -7,6 +9,7 @@ import com.airplanehome.flight.model.KakaoAuthConnection;
 import com.airplanehome.flight.model.PriceHistory;
 import com.airplanehome.flight.model.Tracking;
 import com.airplanehome.flight.model.TripType;
+import com.airplanehome.flight.repository.FlightPriceRepository;
 import com.airplanehome.flight.repository.PriceHistoryRepository;
 import com.airplanehome.flight.repository.TrackingRepository;
 import com.airplanehome.flight.time.TimeSupport;
@@ -23,6 +26,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,17 +43,20 @@ public class FlightService {
 
     private final TrackingRepository trackingRepository;
     private final PriceHistoryRepository priceHistoryRepository;
+    private final FlightPriceRepository flightPriceRepository;
     private final ExchangeRateService exchangeRateService;
     private final FlightPrefetchService flightPrefetchService;
     private final KakaoAuthService kakaoAuthService;
 
     public FlightService(TrackingRepository trackingRepository,
                          PriceHistoryRepository priceHistoryRepository,
+                         FlightPriceRepository flightPriceRepository,
                          ExchangeRateService exchangeRateService,
                          FlightPrefetchService flightPrefetchService,
                          KakaoAuthService kakaoAuthService) {
         this.trackingRepository = trackingRepository;
         this.priceHistoryRepository = priceHistoryRepository;
+        this.flightPriceRepository = flightPriceRepository;
         this.exchangeRateService = exchangeRateService;
         this.flightPrefetchService = flightPrefetchService;
         this.kakaoAuthService = kakaoAuthService;
@@ -265,6 +272,78 @@ public class FlightService {
 
     public Tracking saveTracking(Tracking tracking) {
         return trackingRepository.save(tracking);
+    }
+
+    public List<PriceHistory> getTrackingHistory(Long id, String ownerToken, String kakaoConnectionId) {
+        getTracking(id, ownerToken, kakaoConnectionId);
+        return priceHistoryRepository.findByTrackingIdOrderByCheckedAtAsc(id);
+    }
+
+    public List<DailyPriceDto> getCalendar(String origin, String destination) {
+        LocalDate today = TimeSupport.nowKst().toLocalDate();
+        LocalDate endDate = today.plusDays(SUPPORTED_SEARCH_WINDOW_DAYS - 1);
+        String normalizedOrigin = origin.trim().toUpperCase();
+        String normalizedDest = destination.trim().toUpperCase();
+
+        List<FlightPrice> prices = flightPriceRepository
+                .findByTripTypeAndOriginAndDestinationAndDepartureDateBetweenAndReturnDateIsNullOrderByDepartureDateAscPriceAsc(
+                        TripType.ONE_WAY, normalizedOrigin, normalizedDest, today, endDate);
+
+        Double[] rate = {null};
+        Map<LocalDate, DailyPriceDto> minByDate = new LinkedHashMap<>();
+        for (FlightPrice fp : prices) {
+            if (fp.getPrice() == null || fp.getDepartureDate() == null) continue;
+            BigDecimal krw = toKrw(fp.getPrice(), fp.getCurrency(), rate);
+            DailyPriceDto existing = minByDate.get(fp.getDepartureDate());
+            if (existing == null || existing.getPrice() == null || krw.compareTo(existing.getPrice()) < 0) {
+                minByDate.put(fp.getDepartureDate(),
+                        new DailyPriceDto(fp.getDepartureDate(), krw, Boolean.TRUE.equals(fp.getApproximate()), fp.getAirline()));
+            }
+        }
+
+        List<DailyPriceDto> result = new ArrayList<>();
+        for (LocalDate date = today; !date.isAfter(endDate); date = date.plusDays(1)) {
+            DailyPriceDto dto = minByDate.get(date);
+            result.add(dto != null ? dto : new DailyPriceDto(date, null, false, null));
+        }
+        return result;
+    }
+
+    public List<DealDto> getDeals(String origin) {
+        LocalDate today = TimeSupport.nowKst().toLocalDate();
+        LocalDate endDate = today.plusDays(SUPPORTED_SEARCH_WINDOW_DAYS - 1);
+
+        List<FlightPrice> prices = flightPriceRepository
+                .findByTripTypeAndOriginAndDepartureDateBetweenAndReturnDateIsNullOrderByPriceAsc(
+                        TripType.ONE_WAY, origin.trim().toUpperCase(), today, endDate);
+
+        Double[] rate = {null};
+        Map<String, DealDto> minByDest = new LinkedHashMap<>();
+        for (FlightPrice fp : prices) {
+            if (fp.getPrice() == null || fp.getDestination() == null) continue;
+            BigDecimal krw = toKrw(fp.getPrice(), fp.getCurrency(), rate);
+            DealDto existing = minByDest.get(fp.getDestination());
+            if (existing == null || krw.compareTo(existing.getPrice()) < 0) {
+                minByDest.put(fp.getDestination(),
+                        new DealDto(fp.getDestination(), krw, fp.getDepartureDate(), fp.getAirline(), Boolean.TRUE.equals(fp.getApproximate())));
+            }
+        }
+
+        return minByDest.values().stream()
+                .sorted(Comparator.comparing(DealDto::getPrice))
+                .collect(Collectors.toList());
+    }
+
+    private BigDecimal toKrw(BigDecimal price, String currency, Double[] rateHolder) {
+        if (price == null) return null;
+        String c = currency == null ? "KRW" : currency.trim().toUpperCase();
+        if ("USD".equals(c)) {
+            if (rateHolder[0] == null) {
+                rateHolder[0] = exchangeRateService.getUsdToKrwRate();
+            }
+            return price.multiply(BigDecimal.valueOf(rateHolder[0])).setScale(0, RoundingMode.HALF_UP);
+        }
+        return price;
     }
 
     private void saveHistory(Long trackingId, FlightPrice currentPrice) {

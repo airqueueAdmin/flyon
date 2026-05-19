@@ -363,7 +363,161 @@ document.addEventListener("DOMContentLoaded", () => {
   if (document.body.dataset.page === "tracking") {
     initTrackingPage();
   }
+  if (document.body.dataset.page === "deals") {
+    initDealsPage();
+  }
 });
+
+function renderCalendarStrip(target, days, selectedDate, onDateSelect) {
+  if (!days || !days.length) {
+    target.innerHTML = "";
+    return;
+  }
+
+  const validPrices = days.filter(d => d.price != null).map(d => Number(d.price));
+  const minPrice = validPrices.length ? Math.min(...validPrices) : null;
+  const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+  target.innerHTML = days.map(day => {
+    const date = new Date(day.date + "T00:00:00");
+    const dayName = DAY_NAMES[date.getDay()];
+    const isCheapest = day.price != null && minPrice != null && Number(day.price) === minPrice;
+    const isSelected = day.date === selectedDate;
+    const hasPrice = day.price != null;
+    const priceDisplay = hasPrice ? `${Math.round(Number(day.price) / 10000)}만원` : "-";
+
+    return `
+      <button
+        class="calendar-day${isCheapest ? " cheapest" : ""}${isSelected ? " selected" : ""}${!hasPrice ? " no-data" : ""}"
+        data-date="${escapeHtml(day.date)}"
+        type="button"
+        ${!hasPrice ? "disabled" : ""}
+      >
+        <span class="cal-day-name">${dayName}</span>
+        <span class="cal-date">${date.getMonth() + 1}/${date.getDate()}</span>
+        <span class="cal-price">${priceDisplay}</span>
+        ${isCheapest ? '<span class="cal-cheapest-badge">최저</span>' : ""}
+      </button>
+    `;
+  }).join("");
+
+  target.querySelectorAll(".calendar-day[data-date]:not([disabled])").forEach(btn => {
+    btn.addEventListener("click", () => {
+      onDateSelect(btn.dataset.date);
+    });
+  });
+}
+
+function renderSparkline(container, history) {
+  const prices = (history || [])
+    .map(h => (h.price !== null && h.price !== undefined) ? Number(h.price) : null)
+    .filter(p => p !== null && !isNaN(p));
+
+  if (prices.length < 2) {
+    container.innerHTML = `<span class="sparkline-empty">기록이 쌓이면 가격 추이가 표시됩니다.</span>`;
+    return;
+  }
+
+  const W = 260, H = 56, P = 6;
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+
+  const xs = prices.map((_, i) => P + (i / (prices.length - 1)) * (W - 2 * P));
+  const ys = prices.map(v => H - P - ((v - min) / range) * (H - 2 * P));
+
+  const pathD = xs.map((x, i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
+  const areaD = `${pathD} L ${xs[xs.length - 1].toFixed(1)} ${H} L ${xs[0].toFixed(1)} ${H} Z`;
+
+  const first = prices[0];
+  const last = prices[prices.length - 1];
+  const trendDown = last < first;
+  const trendUp = last > first;
+  const stroke = trendDown ? "var(--success)" : trendUp ? "#b13c2f" : "var(--muted)";
+  const fill = trendDown ? "rgba(32,115,95,0.07)" : trendUp ? "rgba(177,60,47,0.06)" : "rgba(109,93,77,0.05)";
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="sparkline-svg" aria-hidden="true">
+      <path d="${areaD}" fill="${fill}" stroke="none"/>
+      <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${xs[0].toFixed(1)}" cy="${ys[0].toFixed(1)}" r="2" fill="${stroke}" opacity="0.45"/>
+      <circle cx="${xs[xs.length - 1].toFixed(1)}" cy="${ys[ys.length - 1].toFixed(1)}" r="3" fill="${stroke}"/>
+    </svg>
+    <div class="sparkline-labels">
+      <span>최저 ${formatMoney(min)}</span>
+      <span>현재 ${formatMoney(last)}</span>
+    </div>
+  `;
+}
+
+async function loadHistoryCharts(trackings) {
+  await Promise.allSettled((trackings || []).map(async tracking => {
+    const container = document.getElementById(`sparkline-${tracking.id}`);
+    if (!container) return;
+    try {
+      const history = await requestJson(`/api/trackings/${tracking.id}/history`);
+      renderSparkline(container, history || []);
+    } catch {
+      const historySection = container.closest(".price-history");
+      if (historySection) historySection.hidden = true;
+    }
+  }));
+}
+
+async function initDealsPage() {
+  const grid = qs("#deals-grid");
+  const status = qs("#deals-status");
+  const subtitle = qs("#deals-subtitle");
+  if (!grid) return;
+
+  status.textContent = "최저가 정보를 불러오는 중입니다...";
+  status.className = "status";
+
+  try {
+    const deals = await requestJson("/api/flights/deals?origin=ICN");
+    status.textContent = "";
+
+    if (!deals || !deals.length) {
+      grid.innerHTML = `<div class="empty-state"><h3>현재 표시할 특가 항공권이 없습니다</h3><p class="muted">잠시 후 다시 확인해 주세요.</p></div>`;
+      return;
+    }
+
+    const today = new Date();
+    const endDate = new Date(today.getTime() + 6 * 86400000);
+    if (subtitle) {
+      subtitle.textContent = `${toDateInputValue(today)} ~ ${toDateInputValue(endDate)} 기간의 인천 출발 노선별 최저가입니다.`;
+    }
+
+    grid.innerHTML = deals.map(deal => {
+      const destName = AIRPORT_DISPLAY_MAP[deal.destination] || deal.destination;
+      const dateLabel = deal.departureDate ? formatDealDate(deal.departureDate) : "";
+      const searchUrl = `/?origin=ICN&destination=${encodeURIComponent(deal.destination)}${deal.departureDate ? `&departureDate=${deal.departureDate}` : ""}`;
+      return `
+        <a class="deal-card" href="${escapeHtml(searchUrl)}">
+          <div class="deal-destination">${escapeHtml(destName)}</div>
+          <div class="deal-route">ICN → ${escapeHtml(deal.destination)}</div>
+          <div class="deal-price">${formatMoney(deal.price)}</div>
+          <div class="deal-meta">
+            ${dateLabel ? `<span>${escapeHtml(dateLabel)}</span>` : ""}
+            ${deal.airline ? `<span>${escapeHtml(deal.airline)}</span>` : ""}
+            ${deal.approximate ? `<span class="approx-badge">예상 가격</span>` : ""}
+          </div>
+          <span class="deal-cta">검색하러 가기 →</span>
+        </a>
+      `;
+    }).join("");
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "status error";
+  }
+}
+
+function formatDealDate(dateStr) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr + "T00:00:00");
+  const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 (${DAY_NAMES[date.getDay()]})`;
+}
 
 function initSearchPage() {
   const form = qs("#search-form");
@@ -390,6 +544,9 @@ function initSearchPage() {
   let searchState = null;
   let kakaoConnection = getStoredKakaoConnection();
 
+  const calendarSection = qs("#calendar-section");
+  const calendarStrip = qs("#calendar-strip");
+
   populateSelect("#origin", AIRPORT_OPTIONS.origin);
   populateSelect("#destination", AIRPORT_OPTIONS.destination);
   applySearchDateWindow();
@@ -399,6 +556,33 @@ function initSearchPage() {
   syncReturnDateConstraint();
   syncKakaoFields();
   loadNotificationExample("#kakao-example");
+  loadCalendar();
+
+  qs("#origin").addEventListener("change", loadCalendar);
+  qs("#destination").addEventListener("change", loadCalendar);
+
+  async function loadCalendar() {
+    const origin = qs("#origin").value;
+    const destination = qs("#destination").value;
+    if (!origin || !destination || !calendarSection || !calendarStrip) return;
+    try {
+      const days = await requestJson(`/api/flights/calendar?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`);
+      const hasAnyPrice = days && days.some(d => d.price != null);
+      if (!hasAnyPrice) {
+        calendarSection.hidden = true;
+        return;
+      }
+      renderCalendarStrip(calendarStrip, days, departureDateInput.value, (newDate) => {
+        departureDateInput.value = newDate;
+        syncReturnDateConstraint();
+        const submitBtn = qs('#search-form button[type="submit"]');
+        if (submitBtn) submitBtn.click();
+      });
+      calendarSection.hidden = false;
+    } catch {
+      calendarSection.hidden = true;
+    }
+  }
 
   tripTypeInputs.forEach((input) => {
     input.addEventListener("change", () => {
@@ -500,6 +684,7 @@ function initSearchPage() {
 
       status.textContent = "";
       resultCount.textContent = `${flights.length}개의 항공편을 찾았습니다`;
+      loadCalendar();
       trackEvent('flight_search', {
         origin: payload.origin,
         destination: payload.destination,
@@ -857,6 +1042,7 @@ function initTrackingPage() {
       await requestJson(`/api/trackings/${id}`, { method: "DELETE" });
       await loadTrackings();
     });
+    loadHistoryCharts(filteredTrackings);
   }
 }
 
@@ -927,6 +1113,14 @@ function renderTrackings(target, trackings, onRemove) {
         <div class="tracking-line">
           <span>최저가 이동</span>
           <span>스카이스캐너</span>
+        </div>
+      </div>
+      <div class="price-history">
+        <div class="price-history-header">
+          <span>가격 추이</span>
+        </div>
+        <div id="sparkline-${tracking.id}" class="sparkline-container">
+          <span class="sparkline-empty">로딩 중...</span>
         </div>
       </div>
     `;

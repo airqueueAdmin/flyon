@@ -1,8 +1,11 @@
 package com.airplanehome.flight.controller;
 
+import com.airplanehome.flight.controller.dto.DailyPriceDto;
+import com.airplanehome.flight.controller.dto.DealDto;
 import com.airplanehome.flight.controller.dto.FlightSearchRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
+import com.airplanehome.flight.model.PriceHistory;
 import com.airplanehome.flight.model.Tracking;
 import com.airplanehome.flight.service.FlightService;
 import java.util.List;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -60,5 +64,23 @@ public class FlightController {
                                @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
                                @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
         flightService.deleteTracking(id, ownerToken, kakaoConnectionId);
+    }
+
+    @GetMapping("/trackings/{id}/history")
+    public List<PriceHistory> getTrackingHistory(@PathVariable Long id,
+                                                  @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
+                                                  @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
+        return flightService.getTrackingHistory(id, ownerToken, kakaoConnectionId);
+    }
+
+    @GetMapping("/flights/calendar")
+    public List<DailyPriceDto> getCalendar(@RequestParam String origin,
+                                            @RequestParam String destination) {
+        return flightService.getCalendar(origin, destination);
+    }
+
+    @GetMapping("/flights/deals")
+    public List<DealDto> getDeals(@RequestParam(defaultValue = "ICN") String origin) {
+        return flightService.getDeals(origin);
     }
 }

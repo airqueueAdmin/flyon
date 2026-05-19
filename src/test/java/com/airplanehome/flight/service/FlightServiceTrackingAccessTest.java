@@ -2,6 +2,7 @@ package com.airplanehome.flight.service;
 
 import com.airplanehome.flight.model.KakaoAuthConnection;
 import com.airplanehome.flight.model.Tracking;
+import com.airplanehome.flight.repository.FlightPriceRepository;
 import com.airplanehome.flight.repository.PriceHistoryRepository;
 import com.airplanehome.flight.repository.TrackingRepository;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ class FlightServiceTrackingAccessTest {
         FlightService flightService = new FlightService(
                 trackingRepository,
                 mock(PriceHistoryRepository.class),
+                mock(FlightPriceRepository.class),
                 mock(ExchangeRateService.class),
                 mock(FlightPrefetchService.class),
                 mock(KakaoAuthService.class));
@@ -52,6 +54,7 @@ class FlightServiceTrackingAccessTest {
         FlightService flightService = new FlightService(
                 trackingRepository,
                 mock(PriceHistoryRepository.class),
+                mock(FlightPriceRepository.class),
                 mock(ExchangeRateService.class),
                 mock(FlightPrefetchService.class),
                 kakaoAuthService);
@@ -82,6 +85,7 @@ class FlightServiceTrackingAccessTest {
         FlightService flightService = new FlightService(
                 trackingRepository,
                 priceHistoryRepository,
+                mock(FlightPriceRepository.class),
                 mock(ExchangeRateService.class),
                 mock(FlightPrefetchService.class),
                 mock(KakaoAuthService.class));
@@ -102,6 +106,7 @@ class FlightServiceTrackingAccessTest {
         FlightService flightService = new FlightService(
                 trackingRepository,
                 priceHistoryRepository,
+                mock(FlightPriceRepository.class),
                 mock(ExchangeRateService.class),
                 mock(FlightPrefetchService.class),
                 kakaoAuthService);
