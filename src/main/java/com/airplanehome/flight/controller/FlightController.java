@@ -7,8 +7,10 @@ import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.PriceHistory;
 import com.airplanehome.flight.model.Tracking;
+import com.airplanehome.flight.service.ExchangeRateService;
 import com.airplanehome.flight.service.FlightService;
 import java.util.List;
+import java.util.Map;
 import javax.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,9 +31,11 @@ public class FlightController {
     private static final String KAKAO_CONNECTION_HEADER = "X-Kakao-Connection-Id";
 
     private final FlightService flightService;
+    private final ExchangeRateService exchangeRateService;
 
-    public FlightController(FlightService flightService) {
+    public FlightController(FlightService flightService, ExchangeRateService exchangeRateService) {
         this.flightService = flightService;
+        this.exchangeRateService = exchangeRateService;
     }
 
     @PostMapping("/flights/search")
@@ -82,5 +86,10 @@ public class FlightController {
     @GetMapping("/flights/deals")
     public List<DealDto> getDeals(@RequestParam(defaultValue = "ICN") String origin) {
         return flightService.getDeals(origin);
+    }
+
+    @GetMapping("/exchange-rates")
+    public Map<String, Object> getExchangeRates() {
+        return exchangeRateService.getDisplayRates();
     }
 }

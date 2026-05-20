@@ -531,10 +531,87 @@ select:focus {
 
 .search-page-grid {
   align-items: start;
+  grid-template-columns: 1fr 320px;
+}
+
+.search-main-col,
+.search-sidebar-col {
+  display: grid;
+  gap: 20px;
+  align-content: start;
 }
 
 .search-form-card {
-  max-width: 760px;
+  max-width: none;
+}
+
+/* --- Exchange Rate Card --- */
+.fx-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.fx-updated {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fx-list {
+  display: grid;
+  gap: 8px;
+}
+
+.fx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(88, 71, 53, 0.08);
+}
+
+.fx-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fx-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.fx-currency {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.fx-value {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.fx-skeleton {
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(88,71,53,0.06) 25%, rgba(88,71,53,0.1) 50%, rgba(88,71,53,0.06) 75%);
+  background-size: 200% 100%;
+  animation: fx-shimmer 1.4s infinite;
+}
+
+@keyframes fx-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .landing-hero h1 {
@@ -846,6 +923,10 @@ select:focus {
   .route-link-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .search-page-grid {
+    grid-template-columns: 1fr 280px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -894,6 +975,12 @@ select:focus {
   }
 
   .search-page-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .search-main-col,
+  .search-sidebar-col {
     gap: 14px;
   }
 
@@ -904,7 +991,8 @@ select:focus {
   .search-form-card,
   .search-results-card,
   .search-routes-card,
-  .search-guide-card {
+  .search-guide-card,
+  .search-fx-card {
     width: 100%;
     max-width: none;
     margin: 0;
@@ -1032,24 +1120,12 @@ select:focus {
     gap: 12px;
   }
 
-  .search-hero-copy {
+  .search-main-col {
     order: 1;
   }
 
-  .search-form-card {
+  .search-sidebar-col {
     order: 2;
-  }
-
-  .search-routes-card {
-    order: 3;
-  }
-
-  .search-results-card {
-    order: 4;
-  }
-
-  .search-guide-card {
-    order: 5;
   }
 
   .search-guide-card .flow-list {

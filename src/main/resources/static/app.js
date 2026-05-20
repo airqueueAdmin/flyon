@@ -556,6 +556,7 @@ function initSearchPage() {
   syncReturnDateConstraint();
   syncKakaoFields();
   loadNotificationExample("#kakao-example");
+  loadExchangeRates();
   loadCalendar();
 
   qs("#origin").addEventListener("change", loadCalendar);
@@ -1162,4 +1163,45 @@ function renderTrackings(target, trackings, onRemove) {
 
     target.appendChild(card);
   });
+}
+
+const FX_CURRENCIES = [
+  { code: "USD", label: "미국 달러", flag: "🇺🇸", unit: 1 },
+  { code: "JPY", label: "일본 엔", flag: "🇯🇵", unit: 100 },
+  { code: "EUR", label: "유로", flag: "🇪🇺", unit: 1 },
+  { code: "THB", label: "태국 바트", flag: "🇹🇭", unit: 1 },
+  { code: "SGD", label: "싱가포르 달러", flag: "🇸🇬", unit: 1 },
+];
+
+async function loadExchangeRates() {
+  const listEl = qs("#fx-list");
+  const updatedEl = qs("#fx-updated");
+  if (!listEl) return;
+
+  listEl.innerHTML = FX_CURRENCIES.map(() => `<div class="fx-skeleton"></div>`).join("");
+
+  try {
+    const data = await requestJson("/api/exchange-rates");
+
+    listEl.innerHTML = FX_CURRENCIES.map(({ code, label, flag, unit }) => {
+      const krwPerUnit = data.rates && data.rates[code];
+      if (!krwPerUnit) return "";
+      const unitLabel = unit === 100 ? "100" : "1";
+      const formatted = Number(krwPerUnit).toLocaleString("ko-KR") + "원";
+      return `
+        <div class="fx-row">
+          <span class="fx-label">
+            <span class="fx-flag">${flag}</span>
+            <span>${unitLabel} ${code} <span class="fx-currency">${label}</span></span>
+          </span>
+          <span class="fx-value">${formatted}</span>
+        </div>`;
+    }).join("");
+
+    if (updatedEl && data.date) {
+      updatedEl.textContent = `${data.date} 기준`;
+    }
+  } catch (_) {
+    listEl.innerHTML = `<p class="muted" style="font-size:13px;padding:4px 2px">환율 정보를 불러오지 못했습니다.</p>`;
+  }
 }
