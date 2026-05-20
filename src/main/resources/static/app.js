@@ -491,7 +491,7 @@ async function initDealsPage() {
     grid.innerHTML = deals.map(deal => {
       const destName = AIRPORT_DISPLAY_MAP[deal.destination] || deal.destination;
       const dateLabel = deal.departureDate ? formatDealDate(deal.departureDate) : "";
-      const searchUrl = `/?origin=ICN&destination=${encodeURIComponent(deal.destination)}${deal.departureDate ? `&departureDate=${deal.departureDate}` : ""}`;
+      const searchUrl = `/?origin=ICN&destination=${encodeURIComponent(deal.destination)}${deal.departureDate ? `&departureDate=${deal.departureDate}` : ""}&autoSearch=1`;
       return `
         <a class="deal-card" href="${escapeHtml(searchUrl)}">
           <div class="deal-destination">${escapeHtml(destName)}</div>
@@ -502,7 +502,7 @@ async function initDealsPage() {
             ${deal.airline ? `<span>${escapeHtml(deal.airline)}</span>` : ""}
             ${deal.approximate ? `<span class="approx-badge">예상 가격</span>` : ""}
           </div>
-          <span class="deal-cta">검색하러 가기 →</span>
+          <span class="deal-cta">검색하기 →</span>
         </a>
       `;
     }).join("");
@@ -558,6 +558,10 @@ function initSearchPage() {
   loadNotificationExample("#kakao-example");
   loadExchangeRates();
   loadCalendar();
+
+  if (new URLSearchParams(window.location.search).get("autoSearch") === "1") {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  }
 
   qs("#origin").addEventListener("change", loadCalendar);
   qs("#destination").addEventListener("change", loadCalendar);
