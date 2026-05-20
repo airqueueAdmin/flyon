@@ -560,7 +560,7 @@ function initSearchPage() {
   loadCalendar();
 
   if (new URLSearchParams(window.location.search).get("autoSearch") === "1") {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    setTimeout(() => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })), 0);
   }
 
   qs("#origin").addEventListener("change", loadCalendar);
