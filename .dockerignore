@@ -5,4 +5,4 @@ target
 rapidapi-live.out.log
 rapidapi-live.err.log
 render.yaml
-DEPLOY_RENDER_NEON.md
+DEPLOY_RENDER_SUPABASE.md
