@@ -1194,7 +1194,7 @@ function renderTrackings(target, trackings, onRemove) {
         destination: tracking.destination,
         trip_type: tracking.tripType
       });
-      window.location.href = buildSkyscannerTrackingUrl(tracking);
+      window.open(buildSkyscannerTrackingUrl(tracking), '_blank', 'noopener,noreferrer');
     });
     actionRow.appendChild(dealButton);
 

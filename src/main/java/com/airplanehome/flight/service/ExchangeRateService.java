@@ -19,7 +19,7 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class ExchangeRateService {
     private static final Logger log = LoggerFactory.getLogger(ExchangeRateService.class);
-    private static final List<String> DISPLAY_CURRENCIES = List.of("USD", "JPY", "EUR", "THB", "SGD");
+    private static final List<String> DISPLAY_CURRENCIES = List.of("USD", "JPY", "EUR", "THB", "CNY");
 
     private final RestTemplate restTemplate;
     private final String apiUrl;
