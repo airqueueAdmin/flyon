@@ -290,16 +290,23 @@ public class FlightService {
                         TripType.ONE_WAY, normalizedOrigin, normalizedDest, today, endDate);
 
         Double[] rate = {null};
-        Map<LocalDate, DailyPriceDto> minByDate = new LinkedHashMap<>();
+        // exact(실제 API 조회) 우선, 해당 날짜에 exact 없을 때만 approximate 사용
+        Map<LocalDate, DailyPriceDto> minExactByDate = new LinkedHashMap<>();
+        Map<LocalDate, DailyPriceDto> minApproxByDate = new LinkedHashMap<>();
         for (FlightPrice fp : prices) {
             if (fp.getPrice() == null || fp.getDepartureDate() == null) continue;
             BigDecimal krw = toKrw(fp.getPrice(), fp.getCurrency(), rate);
-            DailyPriceDto existing = minByDate.get(fp.getDepartureDate());
+            boolean isApprox = Boolean.TRUE.equals(fp.getApproximate());
+            Map<LocalDate, DailyPriceDto> target = isApprox ? minApproxByDate : minExactByDate;
+            DailyPriceDto existing = target.get(fp.getDepartureDate());
             if (existing == null || existing.getPrice() == null || krw.compareTo(existing.getPrice()) < 0) {
-                minByDate.put(fp.getDepartureDate(),
-                        new DailyPriceDto(fp.getDepartureDate(), krw, Boolean.TRUE.equals(fp.getApproximate()), fp.getAirline()));
+                target.put(fp.getDepartureDate(),
+                        new DailyPriceDto(fp.getDepartureDate(), krw, isApprox, fp.getAirline()));
             }
         }
+        // exact가 있는 날짜는 exact로 덮어씀
+        Map<LocalDate, DailyPriceDto> minByDate = new LinkedHashMap<>(minApproxByDate);
+        minByDate.putAll(minExactByDate);
 
         List<DailyPriceDto> result = new ArrayList<>();
         for (LocalDate date = today; !date.isAfter(endDate); date = date.plusDays(1)) {
@@ -318,18 +325,25 @@ public class FlightService {
                         TripType.ONE_WAY, origin.trim().toUpperCase(), today, endDate);
 
         Double[] rate = {null};
-        Map<String, DealDto> minByDest = new LinkedHashMap<>();
+        // exact(실제 API 조회) 우선, 노선별로 exact 없을 때만 approximate 사용
+        Map<String, DealDto> minExactByDest = new LinkedHashMap<>();
+        Map<String, DealDto> minApproxByDest = new LinkedHashMap<>();
         for (FlightPrice fp : prices) {
             if (fp.getPrice() == null || fp.getDestination() == null) continue;
             BigDecimal krw = toKrw(fp.getPrice(), fp.getCurrency(), rate);
-            DealDto existing = minByDest.get(fp.getDestination());
+            boolean isApprox = Boolean.TRUE.equals(fp.getApproximate());
+            Map<String, DealDto> target = isApprox ? minApproxByDest : minExactByDest;
+            DealDto existing = target.get(fp.getDestination());
             if (existing == null || krw.compareTo(existing.getPrice()) < 0) {
-                minByDest.put(fp.getDestination(),
-                        new DealDto(fp.getDestination(), krw, fp.getDepartureDate(), fp.getAirline(), Boolean.TRUE.equals(fp.getApproximate())));
+                target.put(fp.getDestination(),
+                        new DealDto(fp.getDestination(), krw, fp.getDepartureDate(), fp.getAirline(), isApprox));
             }
         }
+        // exact가 있는 노선은 exact로 덮어씀
+        Map<String, DealDto> merged = new LinkedHashMap<>(minApproxByDest);
+        merged.putAll(minExactByDest);
 
-        return minByDest.values().stream()
+        return merged.values().stream()
                 .sorted(Comparator.comparing(DealDto::getPrice))
                 .collect(Collectors.toList());
     }
