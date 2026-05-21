@@ -85,6 +85,10 @@ rapidapi:
   insecure-ssl: ${RAPIDAPI_INSECURE_SSL:true}
   max-calls-per-hour: ${RAPIDAPI_MAX_CALLS_PER_HOUR:50}
 
+google:
+  places:
+    api-key: ${GOOGLE_PLACES_API_KEY:}
+
 duffel:
   enabled: ${DUFFEL_ENABLED:false}
   api-key: ${DUFFEL_API_KEY:}

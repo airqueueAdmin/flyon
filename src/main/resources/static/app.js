@@ -362,6 +362,9 @@ function escapeHtml(value) {
 
 document.addEventListener("DOMContentLoaded", () => {
   syncKakaoConnectionFromParams();
+  if (document.body.dataset.page === "restaurants") {
+    initRestaurantsPage();
+  }
   if (document.body.dataset.page === "search") {
     initSearchPage();
   }
@@ -1224,6 +1227,111 @@ const FX_CURRENCIES = [
   { code: "THB", label: "태국 바트", flag: "🇹🇭", unit: 1 },
   { code: "SGD", label: "싱가포르 달러", flag: "🇸🇬", unit: 1 },
 ];
+
+// ============================================================
+// Restaurants Page
+// ============================================================
+
+let _restaurantMap = null;
+let _selectedCityMarker = null;
+
+async function initRestaurantsPage() {
+  if (typeof L === "undefined") {
+    qs("#restaurants-status").textContent = "지도 라이브러리를 불러오지 못했습니다.";
+    return;
+  }
+
+  _restaurantMap = L.map("restaurants-map", {
+    center: [25, 120],
+    zoom: 3,
+  });
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 18,
+  }).addTo(_restaurantMap);
+
+  try {
+    const cities = await requestJson("/api/restaurants/cities");
+    cities.forEach((city) => {
+      const marker = L.circleMarker([city.lat, city.lng], {
+        radius: 8,
+        fillColor: "#d46a3a",
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.85,
+      }).addTo(_restaurantMap);
+
+      marker.bindTooltip(city.name, {
+        permanent: true,
+        direction: "top",
+        offset: [0, -8],
+        className: "restaurant-city-tooltip",
+      });
+
+      marker.on("click", () => {
+        if (_selectedCityMarker) {
+          _selectedCityMarker.setStyle({ fillColor: "#d46a3a", radius: 8 });
+        }
+        marker.setStyle({ fillColor: "#af4b1f", radius: 11 });
+        _selectedCityMarker = marker;
+        loadRestaurants(city.code, city.name);
+      });
+    });
+  } catch (_) {
+    qs("#restaurants-status").textContent = "도시 정보를 불러오지 못했습니다.";
+  }
+}
+
+async function loadRestaurants(cityCode, cityName) {
+  const header = qs("#restaurants-panel-header");
+  const status = qs("#restaurants-status");
+  const list = qs("#restaurants-list");
+
+  header.innerHTML = `
+    <h2>${cityName} 맛집</h2>
+    <p class="muted">Google 평점 기준 인기 맛집</p>
+  `;
+  list.innerHTML = "";
+  status.innerHTML = `<span class="muted" style="font-size:13px">불러오는 중…</span>`;
+
+  try {
+    const restaurants = await requestJson(`/api/restaurants?city=${encodeURIComponent(cityCode)}`);
+    status.innerHTML = "";
+
+    if (!restaurants || restaurants.length === 0) {
+      list.innerHTML = `<p class="muted" style="font-size:13px;padding:4px 0">맛집 정보가 없습니다.</p>`;
+      return;
+    }
+
+    list.innerHTML = restaurants.map(buildRestaurantCard).join("");
+  } catch (_) {
+    status.innerHTML = "";
+    list.innerHTML = `<p class="muted" style="font-size:13px;padding:4px 0">맛집 정보를 불러오지 못했습니다.</p>`;
+  }
+}
+
+function buildRestaurantCard(r) {
+  const ratingNum = r.rating ? r.rating.toFixed(1) : null;
+  const filledStars = r.rating ? Math.round(r.rating) : 0;
+  const stars = ratingNum
+    ? `<span class="restaurant-rating-stars">${"★".repeat(filledStars)}${"☆".repeat(5 - filledStars)}</span>`
+    : "";
+  const countText = r.ratingCount
+    ? `<span class="restaurant-rating-count">(${r.ratingCount.toLocaleString("ko-KR")})</span>`
+    : "";
+  const category = r.category ? `<div class="restaurant-category">${r.category}</div>` : "";
+  const address = r.address ? `<div class="restaurant-address">${r.address}</div>` : "";
+
+  return `
+    <div class="restaurant-card">
+      <div class="restaurant-name">${r.name}</div>
+      ${ratingNum ? `<div class="restaurant-rating"><span class="restaurant-rating-score">${ratingNum}</span>${stars}${countText}</div>` : ""}
+      ${category}
+      ${address}
+    </div>`;
+}
 
 async function loadExchangeRates() {
   const listEl = qs("#fx-list");
