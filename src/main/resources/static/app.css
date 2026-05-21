@@ -265,6 +265,33 @@ select:focus {
   overflow: hidden;
 }
 
+.show-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+
+.show-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.show-more-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
 /*.result-card.cheapest {*/
 /*  padding-top: 25px;*/
 /*}*/

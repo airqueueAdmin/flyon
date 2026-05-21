@@ -923,11 +923,12 @@ function toDateInputValue(date) {
 }
 
 function renderResults(target, flights, onTrack) {
+  const INITIAL_SHOW = 5;
   target.innerHTML = "";
 
-  flights.forEach((flight, index) => {
+  function buildCard(flight, absoluteIndex) {
     const card = document.createElement("article");
-    card.className = `result-card${index === 0 ? " cheapest" : ""}`;
+    card.className = `result-card${absoluteIndex === 0 ? " cheapest" : ""}`;
     card.innerHTML = `
       <div class="result-head">
         <div class="meta">
@@ -974,8 +975,32 @@ function renderResults(target, flights, onTrack) {
 
     actionRow.appendChild(button);
     card.appendChild(actionRow);
-    target.appendChild(card);
+    return card;
+  }
+
+  flights.slice(0, INITIAL_SHOW).forEach((flight, i) => {
+    target.appendChild(buildCard(flight, i));
   });
+
+  if (flights.length > INITIAL_SHOW) {
+    const remaining = flights.length - INITIAL_SHOW;
+    const showMoreWrap = document.createElement("div");
+    showMoreWrap.className = "show-more-wrap";
+
+    const showMoreBtn = document.createElement("button");
+    showMoreBtn.type = "button";
+    showMoreBtn.className = "show-more-btn";
+    showMoreBtn.textContent = `결과 더 보기 (${remaining}개)`;
+    showMoreBtn.addEventListener("click", () => {
+      showMoreWrap.remove();
+      flights.slice(INITIAL_SHOW).forEach((flight, i) => {
+        target.appendChild(buildCard(flight, INITIAL_SHOW + i));
+      });
+    });
+
+    showMoreWrap.appendChild(showMoreBtn);
+    target.appendChild(showMoreWrap);
+  }
 }
 
 function initTrackingPage() {
