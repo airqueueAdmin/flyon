@@ -4,6 +4,7 @@ import com.airplanehome.flight.client.FlightProvider;
 import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.TripType;
 import com.airplanehome.flight.repository.FlightPriceRepository;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,9 +17,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.PostConstruct;
@@ -257,28 +261,69 @@ public class FlightPrefetchService {
 
     public void prefetchPopularRoutes() {
         LocalDate today = LocalDate.now();
+        LocalDate maxDate = today.plusDays(coverageDaysAhead - 1L);
         List<RouteDefinition> selectedRoutes = selectRoutesForCycle();
         log.info("PREFETCH_ROTATION routes={}", selectedRoutes);
         for (RouteDefinition route : selectedRoutes) {
             Map<SearchKey, List<FlightPrice>> coverageByKey = new HashMap<SearchKey, List<FlightPrice>>();
-            Map<SearchKey, SearchKey> exactFetchedKeys = new HashMap<SearchKey, SearchKey>();
 
+            // Step 1: 출발(편도) 날짜별 1회씩 조회
+            Map<LocalDate, List<FlightPrice>> outboundByDate = new LinkedHashMap<LocalDate, List<FlightPrice>>();
             for (Integer offset : actualFetchOffsets) {
                 LocalDate departureDate = today.plusDays(offset.intValue());
-                SearchKey oneWayKey = new SearchKey(TripType.ONE_WAY, route.getOrigin(), route.getDestination(), departureDate, null);
-                if (!exactFetchedKeys.containsKey(oneWayKey)) {
-                    fetchAndMergeCoverage(coverageByKey, exactFetchedKeys, route, TripType.ONE_WAY, departureDate, null);
+                List<FlightPrice> flights = searchWithFallback(
+                        TripType.ONE_WAY, route.getOrigin(), route.getDestination(), departureDate, null, null);
+                if (flights.isEmpty()) {
+                    log.info("API_CALL_SKIPPED key={} reason=no-data-or-provider-skipped",
+                            sharedFlightCacheService.buildKey(TripType.ONE_WAY, route.getOrigin(), route.getDestination(), departureDate, null));
+                    continue;
                 }
+                outboundByDate.put(departureDate, flights);
+                mergeCoverage(coverageByKey, buildExpandedCoverage(
+                        TripType.ONE_WAY, route.getOrigin(), route.getDestination(), departureDate, null, flights));
+            }
 
+            // Step 2: 왕복에 필요한 귀국 날짜 수집 (중복 제거)
+            Set<LocalDate> inboundDates = new LinkedHashSet<LocalDate>();
+            for (LocalDate departureDate : outboundByDate.keySet()) {
                 for (Integer duration : roundTripDurations) {
                     LocalDate returnDate = departureDate.plusDays(duration.intValue());
-                    if (returnDate.isAfter(today.plusDays(coverageDaysAhead - 1L))) {
+                    if (!returnDate.isAfter(maxDate)) {
+                        inboundDates.add(returnDate);
+                    }
+                }
+            }
+
+            // Step 3: 귀국(역방향 편도) 날짜별 1회씩 조회
+            Map<LocalDate, List<FlightPrice>> inboundByDate = new LinkedHashMap<LocalDate, List<FlightPrice>>();
+            for (LocalDate returnDate : inboundDates) {
+                List<FlightPrice> flights = searchWithFallback(
+                        TripType.ONE_WAY, route.getDestination(), route.getOrigin(), returnDate, null, null);
+                if (flights.isEmpty()) {
+                    continue;
+                }
+                inboundByDate.put(returnDate, flights);
+            }
+
+            // Step 4: 왕복 조합 구성 (조회한 편도 결과 재사용)
+            for (LocalDate departureDate : outboundByDate.keySet()) {
+                List<FlightPrice> outbound = outboundByDate.get(departureDate);
+                for (Integer duration : roundTripDurations) {
+                    LocalDate returnDate = departureDate.plusDays(duration.intValue());
+                    if (returnDate.isAfter(maxDate)) {
                         continue;
                     }
-                    SearchKey roundTripKey = new SearchKey(TripType.ROUND_TRIP, route.getOrigin(), route.getDestination(), departureDate, returnDate);
-                    if (!exactFetchedKeys.containsKey(roundTripKey)) {
-                        fetchAndMergeCoverage(coverageByKey, exactFetchedKeys, route, TripType.ROUND_TRIP, departureDate, returnDate);
+                    List<FlightPrice> inbound = inboundByDate.get(returnDate);
+                    if (inbound == null || inbound.isEmpty()) {
+                        continue;
                     }
+                    List<FlightPrice> roundTrips = buildRoundTripFlights(
+                            route.getOrigin(), route.getDestination(), departureDate, returnDate, outbound, inbound);
+                    if (roundTrips.isEmpty()) {
+                        continue;
+                    }
+                    mergeCoverage(coverageByKey, buildExpandedCoverage(
+                            TripType.ROUND_TRIP, route.getOrigin(), route.getDestination(), departureDate, returnDate, roundTrips));
                 }
             }
             persistCoverage(coverageByKey);
@@ -331,22 +376,52 @@ public class FlightPrefetchService {
         routeRequestCounts.put(routeKey, current == null ? 1 : current + 1);
     }
 
-    private void fetchAndMergeCoverage(Map<SearchKey, List<FlightPrice>> coverageByKey,
-                                       Map<SearchKey, SearchKey> exactFetchedKeys,
-                                       RouteDefinition route,
-                                       TripType tripType,
-                                       LocalDate departureDate,
-                                       LocalDate returnDate) {
-        SearchKey requestedKey = new SearchKey(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate);
-        List<FlightPrice> flights = searchWithFallback(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate, null);
-        if (flights.isEmpty()) {
-            log.info("API_CALL_SKIPPED key={} reason=no-data-or-provider-skipped",
-                    sharedFlightCacheService.buildKey(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate));
-            return;
+    private List<FlightPrice> buildRoundTripFlights(String origin,
+                                                    String destination,
+                                                    LocalDate departureDate,
+                                                    LocalDate returnDate,
+                                                    List<FlightPrice> outboundFlights,
+                                                    List<FlightPrice> inboundFlights) {
+        int outLimit = Math.min(3, outboundFlights.size());
+        int inLimit = Math.min(3, inboundFlights.size());
+        List<FlightPrice> combinations = new ArrayList<FlightPrice>();
+        for (int i = 0; i < outLimit; i++) {
+            for (int j = 0; j < inLimit; j++) {
+                combinations.add(buildRoundTripFlight(origin, destination, departureDate, returnDate,
+                        outboundFlights.get(i), inboundFlights.get(j)));
+            }
         }
-        exactFetchedKeys.put(requestedKey, requestedKey);
-        mergeCoverage(coverageByKey,
-                buildExpandedCoverage(tripType, route.getOrigin(), route.getDestination(), departureDate, returnDate, flights));
+        combinations.sort(Comparator.comparing(FlightPrice::getPrice));
+        return combinations;
+    }
+
+    private FlightPrice buildRoundTripFlight(String origin,
+                                             String destination,
+                                             LocalDate departureDate,
+                                             LocalDate returnDate,
+                                             FlightPrice outbound,
+                                             FlightPrice inbound) {
+        BigDecimal outPrice = outbound.getPrice() != null ? outbound.getPrice() : BigDecimal.ZERO;
+        BigDecimal inPrice = inbound.getPrice() != null ? inbound.getPrice() : BigDecimal.ZERO;
+        FlightPrice combined = new FlightPrice();
+        combined.setTripType(TripType.ROUND_TRIP);
+        combined.setOrigin(origin);
+        combined.setDestination(destination);
+        combined.setDepartureDate(departureDate);
+        combined.setReturnDate(returnDate);
+        combined.setPassengers(Integer.valueOf(1));
+        combined.setCurrency(outbound.getCurrency());
+        combined.setProvider(outbound.getProvider() != null ? outbound.getProvider() : inbound.getProvider());
+        combined.setPrice(outPrice.add(inPrice));
+        combined.setTotalPrice(outPrice.add(inPrice));
+        combined.setAirline(outbound.getAirline());
+        combined.setOutboundAirline(outbound.getOutboundAirline() != null ? outbound.getOutboundAirline() : outbound.getAirline());
+        combined.setInboundAirline(inbound.getOutboundAirline() != null ? inbound.getOutboundAirline() : inbound.getAirline());
+        combined.setDepartureTime(outbound.getDepartureTime());
+        combined.setArrivalTime(outbound.getArrivalTime());
+        combined.setReturnDepartureTime(inbound.getDepartureTime());
+        combined.setReturnArrivalTime(inbound.getArrivalTime());
+        return combined;
     }
 
     private List<RouteDefinition> parseRoutes(String routesConfig) {
