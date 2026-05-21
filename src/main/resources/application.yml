@@ -79,9 +79,9 @@ rapidapi:
   auto-complete-url: ${RAPIDAPI_AUTOCOMPLETE_URL:https://flights-sky.p.rapidapi.com/web/flights/auto-complete}
   base-url: ${RAPIDAPI_BASE_URL:https://flights-sky.p.rapidapi.com/web/flights/search-one-way}
   round-trip-base-url: ${RAPIDAPI_ROUND_TRIP_BASE_URL:}
-  market: ${RAPIDAPI_MARKET:US}
-  locale: ${RAPIDAPI_LOCALE:en-US}
-  currency: ${RAPIDAPI_CURRENCY:USD}
+  market: ${RAPIDAPI_MARKET:KR}
+  locale: ${RAPIDAPI_LOCALE:ko-KR}
+  currency: ${RAPIDAPI_CURRENCY:KRW}
   insecure-ssl: ${RAPIDAPI_INSECURE_SSL:true}
   max-calls-per-hour: ${RAPIDAPI_MAX_CALLS_PER_HOUR:50}
 

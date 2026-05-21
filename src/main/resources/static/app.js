@@ -23,6 +23,11 @@ function formatDateTime(value) {
   }).format(new Date(value));
 }
 
+function formatDateOnly(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("ko-KR", {month: "short", day: "numeric"}).format(new Date(value));
+}
+
 function formatFlightSummary(tracking) {
   const outboundAirline = tracking.lastAirline || "확인 불가";
   if (tracking.tripType !== "ROUND_TRIP") {
@@ -942,6 +947,25 @@ function renderResults(target, flights, onTrack) {
         <div class="price">${formatMoney(flight.price)}</div>
       </div>
       <div class="meta">
+        ${flight.timeBucket ? `
+        <div class="meta-line">
+          <span>출발일</span>
+          <span>${formatDateOnly(flight.departureDate)}</span>
+        </div>
+        <div class="meta-line">
+          <span>출발 시간대</span>
+          <span>${formatTimeBucket(flight.timeBucket)}</span>
+        </div>
+        ${flight.tripType === "ROUND_TRIP" && flight.returnDate ? `
+        <div class="meta-line">
+          <span>귀국일</span>
+          <span>${formatDateOnly(flight.returnDate)}</span>
+        </div>
+        <div class="meta-line">
+          <span>귀국 시간대</span>
+          <span>${formatTimeBucket(flight.timeBucket)}</span>
+        </div>` : ""}
+        ` : `
         <div class="meta-line">
           <span>출발</span>
           <span>${formatDateTime(flight.departureTime)}</span>
@@ -949,10 +973,6 @@ function renderResults(target, flights, onTrack) {
         <div class="meta-line">
           <span>도착</span>
           <span>${formatDateTime(flight.arrivalTime)}</span>
-        </div>
-        <div class="meta-line">
-          <span>시간대</span>
-          <span>${formatTimeBucket(flight.timeBucket)}</span>
         </div>
         ${flight.tripType === "ROUND_TRIP" ? `
         <div class="meta-line">
@@ -963,6 +983,7 @@ function renderResults(target, flights, onTrack) {
           <span>귀국 도착</span>
           <span>${formatDateTime(flight.returnArrivalTime)}</span>
         </div>` : ""}
+        `}
       </div>
     `;
 
