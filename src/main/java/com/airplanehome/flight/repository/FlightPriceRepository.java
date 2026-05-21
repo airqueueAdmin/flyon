@@ -6,15 +6,18 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface FlightPriceRepository extends JpaRepository<FlightPrice, Long> {
     List<FlightPrice> findByPrefetchedAtAfter(LocalDateTime prefetchedAt);
 
+    @Transactional
     void deleteByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDateIsNull(TripType tripType,
                                                                                      String origin,
                                                                                      String destination,
                                                                                      LocalDate departureDate);
 
+    @Transactional
     void deleteByTripTypeAndOriginAndDestinationAndDepartureDateAndReturnDate(TripType tripType,
                                                                               String origin,
                                                                               String destination,

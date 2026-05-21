@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -126,12 +125,10 @@ public class FlightPrefetchService {
         return getCachedFlightsInternal(resolveTripType(tripType, returnDate), origin, destination, departureDate, returnDate);
     }
 
-    @Transactional
     public List<FlightPrice> getCachedOrFetchFlights(String origin, String destination, LocalDate departureDate) {
         return getCachedOrFetchFlights(TripType.ONE_WAY, origin, destination, departureDate, null, null);
     }
 
-    @Transactional
     public List<FlightPrice> getCachedOrFetchFlights(TripType tripType,
                                                      String origin,
                                                      String destination,
@@ -258,7 +255,6 @@ public class FlightPrefetchService {
         return false;
     }
 
-    @Transactional
     public void prefetchPopularRoutes() {
         LocalDate today = LocalDate.now();
         List<RouteDefinition> selectedRoutes = selectRoutesForCycle();
@@ -289,12 +285,10 @@ public class FlightPrefetchService {
         }
     }
 
-    @Transactional
     public void refresh(String origin, String destination, LocalDate departureDate) {
         refresh(TripType.ONE_WAY, origin, destination, departureDate, null);
     }
 
-    @Transactional
     public void refresh(TripType tripType,
                         String origin,
                         String destination,
