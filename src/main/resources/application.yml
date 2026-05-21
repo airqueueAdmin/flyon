@@ -88,6 +88,7 @@ rapidapi:
 google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY:}
+    insecure-ssl: ${GOOGLE_PLACES_INSECURE_SSL:false}
 
 duffel:
   enabled: ${DUFFEL_ENABLED:false}

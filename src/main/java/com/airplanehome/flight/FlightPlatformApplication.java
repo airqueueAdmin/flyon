@@ -56,6 +56,13 @@ public class FlightPlatformApplication {
         return buildRestTemplate(builder, insecureSsl);
     }
 
+    @Bean
+    @Qualifier("googlePlacesRestTemplate")
+    public RestTemplate googlePlacesRestTemplate(RestTemplateBuilder builder,
+                                                 @Value("${google.places.insecure-ssl:false}") boolean insecureSsl) throws Exception {
+        return buildRestTemplate(builder, insecureSsl);
+    }
+
     public static void main(String[] args) {
         SpringApplication.run(FlightPlatformApplication.class, args);
     }

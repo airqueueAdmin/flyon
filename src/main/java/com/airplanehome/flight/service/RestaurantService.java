@@ -5,6 +5,7 @@ import com.airplanehome.flight.repository.RestaurantRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -72,9 +73,10 @@ public class RestaurantService {
     }
 
     public RestaurantService(RestaurantRepository restaurantRepository,
+                             @Qualifier("googlePlacesRestTemplate") RestTemplate restTemplate,
                              @Value("${google.places.api-key:}") String googlePlacesApiKey) {
         this.restaurantRepository = restaurantRepository;
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = restTemplate;
         this.googlePlacesApiKey = googlePlacesApiKey;
     }
 
