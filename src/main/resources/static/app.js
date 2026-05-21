@@ -699,6 +699,7 @@ function initSearchPage() {
       renderResults(results, flights, (flight) => {
         selectedFlight = flight;
         selectedRoute.textContent = formatRoute(flight.origin, flight.destination);
+        qs("#target-price").value = flight.price != null ? Math.round(Number(flight.price)) : "";
         modalStatus.textContent = "";
         modalStatus.className = "status";
         trackingLink.hidden = true;
@@ -854,6 +855,7 @@ function initSearchPage() {
     renderResults(results, cached.flights, (flight) => {
       selectedFlight = flight;
       selectedRoute.textContent = formatRoute(flight.origin, flight.destination);
+      qs("#target-price").value = flight.price != null ? Math.round(Number(flight.price)) : "";
       modalStatus.textContent = "";
       modalStatus.className = "status";
       trackingLink.hidden = true;
