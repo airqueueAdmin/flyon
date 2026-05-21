@@ -1225,7 +1225,7 @@ const FX_CURRENCIES = [
   { code: "JPY", label: "일본 엔", flag: "🇯🇵", unit: 100 },
   { code: "EUR", label: "유로", flag: "🇪🇺", unit: 1 },
   { code: "THB", label: "태국 바트", flag: "🇹🇭", unit: 1 },
-  { code: "SGD", label: "싱가포르 달러", flag: "🇸🇬", unit: 1 },
+  { code: "CNY", label: "중국 위안", flag: "🇨🇳", unit: 1 },
 ];
 
 // ============================================================
