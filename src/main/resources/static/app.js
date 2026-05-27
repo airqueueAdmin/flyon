@@ -1038,6 +1038,10 @@ function initTrackingPage() {
   const params = new URLSearchParams(window.location.search);
   const focusId = params.get("id");
   let allTrackings = [];
+  const nudgeBanner = qs("#kakao-nudge-banner");
+  const nudgeConnectButton = qs("#nudge-kakao-connect");
+  const nudgeLinkAllButton = qs("#nudge-link-all");
+  const nudgeStatus = qs("#nudge-status");
 
   populateSelectableFilter("#tracking-origin-filter", AIRPORT_OPTIONS.origin, "전체 출발지");
   populateSelectableFilter("#tracking-destination-filter", AIRPORT_OPTIONS.destination, "전체 도착지");
@@ -1046,6 +1050,77 @@ function initTrackingPage() {
 
   originFilter.addEventListener("change", () => renderFilteredTrackings());
   destinationFilter.addEventListener("change", () => renderFilteredTrackings());
+
+  if (nudgeConnectButton) {
+    nudgeConnectButton.addEventListener("click", async () => {
+      nudgeConnectButton.disabled = true;
+      if (nudgeStatus) {
+        nudgeStatus.textContent = "카카오 로그인 창을 여는 중입니다...";
+        nudgeStatus.className = "status";
+      }
+      try {
+        const auth = await requestJson("/api/notifications/kakao/auth/start");
+        const popup = window.open(auth.authorizationUrl, "kakao-auth", "width=520,height=720");
+        if (!popup) throw new Error("팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.");
+      } catch (error) {
+        if (nudgeStatus) {
+          nudgeStatus.textContent = error.message;
+          nudgeStatus.className = "status error";
+        }
+      } finally {
+        nudgeConnectButton.disabled = false;
+      }
+    });
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (!event.data || event.data.type !== "kakao-auth-success") return;
+    const connection = {
+      connectionId: event.data.connectionId,
+      nickname: event.data.nickname || "카카오 사용자",
+      kakaoUserId: event.data.kakaoUserId
+    };
+    storeKakaoConnection(connection);
+    if (nudgeConnectButton) nudgeConnectButton.hidden = true;
+    if (nudgeStatus) {
+      nudgeStatus.textContent = `${connection.nickname}님, 카카오가 연결되었습니다.`;
+      nudgeStatus.className = "status success";
+    }
+    const unlinkedCount = allTrackings.filter(t => !t.kakaoLinked).length;
+    if (nudgeLinkAllButton && unlinkedCount > 0) {
+      nudgeLinkAllButton.textContent = `${unlinkedCount}개 추적에 알림 연결하기`;
+      nudgeLinkAllButton.hidden = false;
+    }
+    renderFilteredTrackings();
+  });
+
+  if (nudgeLinkAllButton) {
+    nudgeLinkAllButton.addEventListener("click", async () => {
+      const conn = getStoredKakaoConnection();
+      if (!conn || !conn.connectionId) return;
+      nudgeLinkAllButton.disabled = true;
+      nudgeLinkAllButton.textContent = "연결 중...";
+      const unlinked = allTrackings.filter(t => !t.kakaoLinked);
+      let successCount = 0;
+      for (const tracking of unlinked) {
+        try {
+          await requestJson(`/api/trackings/${tracking.id}/kakao`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kakaoConnectionId: conn.connectionId, kakaoOptIn: true })
+          });
+          successCount++;
+        } catch (_) { }
+      }
+      if (nudgeStatus) {
+        nudgeStatus.textContent = `${successCount}개 추적에 카카오 알림이 연결되었습니다.`;
+        nudgeStatus.className = "status success";
+      }
+      if (nudgeBanner) setTimeout(() => { nudgeBanner.hidden = true; }, 2000);
+      await loadTrackings();
+    });
+  }
 
   async function loadTrackings() {
     status.textContent = "추적 목록을 불러오는 중입니다...";
@@ -1069,6 +1144,27 @@ function initTrackingPage() {
       }
 
       renderFilteredTrackings();
+
+      if (nudgeBanner) {
+        const conn = getStoredKakaoConnection();
+        const isConnected = !!(conn && conn.connectionId);
+        const hasUnlinked = trackings.some(t => !t.kakaoLinked);
+        if (hasUnlinked && !isConnected) {
+          nudgeBanner.hidden = false;
+          if (nudgeConnectButton) nudgeConnectButton.hidden = false;
+          if (nudgeLinkAllButton) nudgeLinkAllButton.hidden = true;
+        } else if (hasUnlinked && isConnected) {
+          nudgeBanner.hidden = false;
+          if (nudgeConnectButton) nudgeConnectButton.hidden = true;
+          const count = trackings.filter(t => !t.kakaoLinked).length;
+          if (nudgeLinkAllButton) {
+            nudgeLinkAllButton.textContent = `${count}개 추적에 알림 연결하기`;
+            nudgeLinkAllButton.hidden = false;
+          }
+        } else {
+          nudgeBanner.hidden = true;
+        }
+      }
     } catch (error) {
       status.textContent = error.message;
       status.className = "status error";
@@ -1099,6 +1195,35 @@ function initTrackingPage() {
       await loadTrackings();
     });
     loadHistoryCharts(filteredTrackings);
+
+    list.querySelectorAll(".kakao-link-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const conn = getStoredKakaoConnection();
+        if (!conn || !conn.connectionId) {
+          if (nudgeBanner) {
+            nudgeBanner.hidden = false;
+            nudgeBanner.scrollIntoView({ behavior: "smooth" });
+            nudgeBanner.classList.add("nudge-pulse");
+            setTimeout(() => nudgeBanner.classList.remove("nudge-pulse"), 1200);
+          }
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = "연결 중...";
+        try {
+          await requestJson(`/api/trackings/${btn.dataset.trackingId}/kakao`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kakaoConnectionId: conn.connectionId, kakaoOptIn: true })
+          });
+          trackEvent("kakao_link_from_nudge", { tracking_id: btn.dataset.trackingId });
+          await loadTrackings();
+        } catch (e) {
+          btn.disabled = false;
+          btn.textContent = "알림 연결";
+        }
+      });
+    });
   }
 }
 
@@ -1155,8 +1280,11 @@ function renderTrackings(target, trackings, onRemove) {
           <span>${formatDateTime(tracking.lastReturnArrivalTime)}</span>
         </div>` : ""}
         <div class="tracking-line">
-          <span>카카오 연결</span>
-          <span>${tracking.kakaoNickname || (tracking.kakaoLinked ? "연결됨" : "미연결")}</span>
+          <span>카카오 알림</span>
+          ${tracking.kakaoLinked
+            ? `<span class="kakao-linked-label">✓ ${escapeHtml(tracking.kakaoNickname || "연결됨")}</span>`
+            : `<span><span class="kakao-unlinked-label">미연결</span><button class="kakao-link-btn" data-tracking-id="${tracking.id}" type="button">알림 연결</button></span>`
+          }
         </div>
         <div class="tracking-line">
           <span>목표 가격</span>

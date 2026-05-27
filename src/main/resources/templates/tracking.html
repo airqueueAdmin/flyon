@@ -41,6 +41,19 @@
               <select id="tracking-destination-filter" name="tracking-destination-filter"></select>
             </div>
           </div>
+          <div id="kakao-nudge-banner" class="nudge-banner" hidden>
+            <div class="nudge-inner">
+              <div class="nudge-text">
+                <strong>🔔 카카오 알림이 연결되지 않은 추적이 있어요</strong>
+                <p>카카오 로그인을 연결하면 가격이 내려갈 때 카카오톡으로 바로 알려드려요.</p>
+              </div>
+              <div class="nudge-actions">
+                <button id="nudge-kakao-connect" class="button" type="button">지금 연결하기</button>
+                <button id="nudge-link-all" class="button" type="button" hidden>기존 추적에 알림 연결하기</button>
+              </div>
+            </div>
+            <p id="nudge-status" class="status"></p>
+          </div>
           <div id="tracking-status" class="status"></div>
           <div id="tracking-list" class="tracking-list"></div>
         </section>

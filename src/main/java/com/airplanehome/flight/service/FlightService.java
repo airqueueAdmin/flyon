@@ -3,6 +3,7 @@ package com.airplanehome.flight.service;
 import com.airplanehome.flight.controller.dto.DailyPriceDto;
 import com.airplanehome.flight.controller.dto.DealDto;
 import com.airplanehome.flight.controller.dto.FlightSearchRequest;
+import com.airplanehome.flight.controller.dto.KakaoLinkRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.KakaoAuthConnection;
@@ -268,6 +269,34 @@ public class FlightService {
             }
         }
         return notifications;
+    }
+
+    @Transactional
+    public Tracking linkKakao(Long id, String ownerToken, String kakaoConnectionIdHeader, KakaoLinkRequest request) {
+        if (!StringUtils.hasText(request.getKakaoConnectionId())) {
+            throw new IllegalArgumentException("카카오 연결 ID가 없습니다.");
+        }
+        Tracking tracking = getTracking(id);
+        assertAccessible(tracking, buildAccessContext(ownerToken, kakaoConnectionIdHeader));
+
+        KakaoAuthConnection connection = kakaoAuthService.getConnection(request.getKakaoConnectionId());
+        boolean kakaoOptIn = Boolean.TRUE.equals(request.getKakaoOptIn());
+
+        tracking.setKakaoNotificationEnabled(Boolean.TRUE);
+        tracking.setKakaoUserId(connection.getKakaoUserId());
+        tracking.setKakaoConnectionId(connection.getId());
+        tracking.setKakaoAccessToken(connection.getAccessToken());
+        tracking.setKakaoRefreshToken(connection.getRefreshToken());
+        tracking.setKakaoAccessTokenExpiresAt(connection.getAccessTokenExpiresAt());
+        tracking.setKakaoRefreshTokenExpiresAt(connection.getRefreshTokenExpiresAt());
+        tracking.setKakaoNickname(connection.getNickname());
+        tracking.setKakaoOptIn(Boolean.valueOf(kakaoOptIn));
+        if (kakaoOptIn && tracking.getKakaoOptInAt() == null) {
+            tracking.setKakaoOptInAt(TimeSupport.nowKst());
+        }
+        tracking.setLastUpdatedAt(TimeSupport.nowKst());
+
+        return trackingRepository.save(tracking);
     }
 
     public Tracking saveTracking(Tracking tracking) {

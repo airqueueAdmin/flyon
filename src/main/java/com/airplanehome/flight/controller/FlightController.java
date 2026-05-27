@@ -3,6 +3,7 @@ package com.airplanehome.flight.controller;
 import com.airplanehome.flight.controller.dto.DailyPriceDto;
 import com.airplanehome.flight.controller.dto.DealDto;
 import com.airplanehome.flight.controller.dto.FlightSearchRequest;
+import com.airplanehome.flight.controller.dto.KakaoLinkRequest;
 import com.airplanehome.flight.controller.dto.TrackingRequest;
 import com.airplanehome.flight.model.FlightPrice;
 import com.airplanehome.flight.model.PriceHistory;
@@ -15,6 +16,7 @@ import javax.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -60,6 +62,14 @@ public class FlightController {
                                 @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
                                 @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
         return flightService.getTracking(id, ownerToken, kakaoConnectionId);
+    }
+
+    @PatchMapping("/trackings/{id}/kakao")
+    public Tracking linkKakao(@PathVariable Long id,
+                               @RequestBody KakaoLinkRequest request,
+                               @RequestHeader(value = OWNER_TOKEN_HEADER, required = false) String ownerToken,
+                               @RequestHeader(value = KAKAO_CONNECTION_HEADER, required = false) String kakaoConnectionId) {
+        return flightService.linkKakao(id, ownerToken, kakaoConnectionId, request);
     }
 
     @DeleteMapping("/trackings/{id}")
