@@ -38,6 +38,14 @@ a {
   padding: 24px 0 48px;
 }
 
+.site-banner {
+  width: 100%;
+  display: block;
+  margin-bottom: 12px;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
 .hero {
   padding: 24px;
   border: 1px solid var(--line);
