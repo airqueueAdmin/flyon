@@ -1647,3 +1647,69 @@ select:focus {
 .quiz-retry {
   width: 100%;
 }
+
+/* Quiz promo card (main page) */
+.quiz-promo-card {
+  background: linear-gradient(135deg, var(--accent) 0%, #b94d1a 100%);
+  border-radius: 20px;
+  padding: 28px 24px;
+  color: #fff;
+}
+
+.quiz-promo-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.quiz-promo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quiz-promo-emoji {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.quiz-promo-card h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+}
+
+.quiz-promo-card p {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+.quiz-promo-card .button {
+  background: #fff;
+  color: var(--accent);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.quiz-promo-card .button:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.quiz-hero-btn {
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .quiz-promo-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quiz-promo-card .button {
+    width: 100%;
+    text-align: center;
+  }
+}
