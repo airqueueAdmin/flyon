@@ -1389,6 +1389,7 @@ select:focus {
   padding: 3px 7px;
   box-shadow: 0 2px 8px rgba(74, 45, 22, 0.14);
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .restaurant-city-tooltip::before {

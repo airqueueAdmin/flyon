@@ -48,17 +48,13 @@ function formatTripType(value) {
   return value === "ROUND_TRIP" ? "왕복" : "편도";
 }
 
-function formatTimeBucket(value) {
-  if (value === "morning") {
-    return "오전";
-  }
-  if (value === "afternoon") {
-    return "오후";
-  }
-  if (value === "evening") {
-    return "저녁";
-  }
-  return value || "일반";
+function formatFlightTime(value, isApprox) {
+  if (!value) return "대기 중";
+  const date = new Date(value);
+  const dateStr = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(date);
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return isApprox ? `${dateStr} 약 ${h}:${m}` : `${dateStr} ${h}:${m}`;
 }
 
 function renderApproximateBadge(flight) {
@@ -170,7 +166,7 @@ const AIRPORT_OPTIONS = {
 
 const AIRPORT_DISPLAY_MAP = buildAirportDisplayMap();
 
-const SEARCH_WINDOW_DAYS = 7;
+const SEARCH_WINDOW_DAYS = 30;
 const KAKAO_CONNECTION_STORAGE_KEY = "flight-platform.kakao-connection";
 const TRACKING_OWNER_STORAGE_KEY = "flight-platform.tracking-owner-token";
 const SEARCH_CACHE_STORAGE_KEY = "flight-platform.search-cache";
@@ -950,43 +946,23 @@ function renderResults(target, flights, onTrack) {
         <div class="price">${formatMoney(flight.price)}</div>
       </div>
       <div class="meta">
-        ${flight.timeBucket ? `
-        <div class="meta-line">
-          <span>출발일</span>
-          <span>${formatDateOnly(flight.departureDate)}</span>
-        </div>
-        <div class="meta-line">
-          <span>출발 시간대</span>
-          <span>${formatTimeBucket(flight.timeBucket)}</span>
-        </div>
-        ${flight.tripType === "ROUND_TRIP" && flight.returnDate ? `
-        <div class="meta-line">
-          <span>귀국일</span>
-          <span>${formatDateOnly(flight.returnDate)}</span>
-        </div>
-        <div class="meta-line">
-          <span>귀국 시간대</span>
-          <span>${formatTimeBucket(flight.timeBucket)}</span>
-        </div>` : ""}
-        ` : `
         <div class="meta-line">
           <span>출발</span>
-          <span>${formatDateTime(flight.departureTime)}</span>
+          <span>${formatFlightTime(flight.departureTime, flight.approximate)}</span>
         </div>
         <div class="meta-line">
           <span>도착</span>
-          <span>${formatDateTime(flight.arrivalTime)}</span>
+          <span>${formatFlightTime(flight.arrivalTime, flight.approximate)}</span>
         </div>
         ${flight.tripType === "ROUND_TRIP" ? `
         <div class="meta-line">
           <span>귀국 출발</span>
-          <span>${formatDateTime(flight.returnDepartureTime)}</span>
+          <span>${formatFlightTime(flight.returnDepartureTime, flight.approximate)}</span>
         </div>
         <div class="meta-line">
           <span>귀국 도착</span>
-          <span>${formatDateTime(flight.returnArrivalTime)}</span>
+          <span>${formatFlightTime(flight.returnArrivalTime, flight.approximate)}</span>
         </div>` : ""}
-        `}
       </div>
     `;
 
@@ -1383,26 +1359,28 @@ async function initRestaurantsPage() {
     const cities = await requestJson("/api/restaurants/cities");
     cities.forEach((city) => {
       const marker = L.circleMarker([city.lat, city.lng], {
-        radius: 8,
+        radius: 12,
         fillColor: "#d46a3a",
         color: "#ffffff",
         weight: 2,
         opacity: 1,
         fillOpacity: 0.85,
+        interactive: true,
       }).addTo(_restaurantMap);
 
       marker.bindTooltip(city.name, {
         permanent: true,
         direction: "top",
-        offset: [0, -8],
+        offset: [0, -12],
         className: "restaurant-city-tooltip",
+        interactive: false,
       });
 
       marker.on("click", () => {
         if (_selectedCityMarker) {
-          _selectedCityMarker.setStyle({ fillColor: "#d46a3a", radius: 8 });
+          _selectedCityMarker.setStyle({ fillColor: "#d46a3a", radius: 12 });
         }
-        marker.setStyle({ fillColor: "#af4b1f", radius: 11 });
+        marker.setStyle({ fillColor: "#af4b1f", radius: 15 });
         _selectedCityMarker = marker;
         loadRestaurants(city.code, city.name);
       });
