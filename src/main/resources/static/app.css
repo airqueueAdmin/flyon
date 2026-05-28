@@ -55,6 +55,10 @@ a {
   backdrop-filter: blur(10px);
 }
 
+.hero .hero-top {
+  margin-bottom: 38px;
+}
+
 .hero-top,
 .hero-actions,
 .page-top {
@@ -88,6 +92,10 @@ p {
   max-width: 620px;
   display: grid;
   gap: 12px;
+}
+
+.hero-copy .eyebrow {
+  justify-self: start;
 }
 
 .hero-copy h1 {
@@ -750,27 +758,79 @@ select:focus {
 /* --- Hero Nav --- */
 .hero-nav {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
-.deal-nav-link {
+.nav-card {
+  flex: 1 1 0;
+  min-width: 180px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 14px;
-  font-weight: 700;
-  border: 1px solid rgba(212, 106, 58, 0.22);
-  transition: background 160ms ease, transform 160ms ease;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-.deal-nav-link:hover {
-  background: rgba(212, 106, 58, 0.2);
-  transform: translateY(-1px);
+.nav-card-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(109, 93, 77, 0.08);
+  color: var(--muted);
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.nav-card-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-card-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nav-card-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.nav-card-text small {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* 마우스 호버 시에만 주황색 강조 */
+.nav-card:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(74, 45, 22, 0.10);
+}
+
+.nav-card:hover .nav-card-icon {
+  background: rgba(212, 106, 58, 0.16);
+  color: var(--accent);
+}
+
+.nav-card:hover .nav-card-text strong {
+  color: var(--accent-strong);
+}
+
+.nav-card:hover .nav-card-text small {
+  color: var(--accent);
 }
 
 /* --- Calendar Strip --- */
@@ -1120,6 +1180,10 @@ select:focus {
   .danger-button {
     width: 100%;
     min-height: 46px;
+  }
+
+  .nav-card {
+    flex-basis: 100%;
   }
 
   .search-page-card h2 {
