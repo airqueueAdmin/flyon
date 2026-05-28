@@ -1288,6 +1288,14 @@ select:focus {
     gap: 12px;
   }
 
+  .footer-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 8px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+  }
+
   .site-footer-line {
     font-size: 12px;
     line-height: 1.55;
